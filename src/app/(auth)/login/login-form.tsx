@@ -7,7 +7,7 @@ import { Field, FieldGroup, FieldLabel } from "@/shared/components/ui/field";
 import { Input } from "@/shared/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 import Image from "next/image";
 
@@ -15,11 +15,8 @@ import AuthImage from "@/app/assets/urban-scene.png";
 import { toast } from "sonner";
 
 export const loginSchema = z.object({
-  email: z
-    .email()
-    .max(255)
-    .transform((e) => e.toLowerCase().trim()),
-  password: z.string().min(1).max(128),
+  email: z.string().email().max(255),
+  password: z.string().min(1).max(28),
 });
 
 type FormData = z.infer<typeof loginSchema>;
