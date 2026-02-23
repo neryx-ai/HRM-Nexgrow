@@ -12,14 +12,23 @@ import { z } from "zod";
 import Image from "next/image";
 
 import AuthImage from "@/app/assets/urban-scene.png";
-import { loginSchema } from "@/modules/security/auth.schema";
 import { toast } from "sonner";
+
+export const loginSchema = z.object({
+  email: z
+    .email()
+    .max(255)
+    .transform((e) => e.toLowerCase().trim()),
+  password: z.string().min(1).max(128),
+});
+
+type FormData = z.infer<typeof loginSchema>;
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const form = useForm<z.infer<typeof loginSchema>>({
+  const form = useForm<FormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
