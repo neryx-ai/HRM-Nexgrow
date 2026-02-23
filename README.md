@@ -22,6 +22,12 @@ pnpm run dev
 
 Abre [http://localhost:3000](http://localhost:3000) con tu navegador para ver el resultado.
 
+## Probar app en vivo
+
+La app ya esta en linea implementada en Vercel, puede visitarla en "[tfg-jivis-app.vercel.app](https://tfg-jivis-app.vercel.app/)", donde conforme se publiquen cambios en la rama main se actualiza la aplicación para los usuarios finales.
+
+Para el desarrollo se utiliza una rama "dev" para separar los commits temporales que sean de desarrollo sin terminar funcionalidades completas, al terminar una funcionalidad se crean Pull Requests y los cambios de la rama "dev" se aplican a la rama "main".
+
 ## Avance 1
 
 Para el avance 1 se muestran los avances de la primer semana de desarrollo:
