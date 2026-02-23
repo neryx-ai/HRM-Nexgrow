@@ -1,8 +1,7 @@
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const registerSchema = z.object({
   email: z
-    .string()
     .email("Email inválido")
     .max(255)
     .transform((e) => e.toLowerCase().trim()),
@@ -18,7 +17,6 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
   email: z
-    .string()
     .email()
     .max(255)
     .transform((e) => e.toLowerCase().trim()),
