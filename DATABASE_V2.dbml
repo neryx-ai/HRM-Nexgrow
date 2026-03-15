@@ -1,0 +1,331 @@
+// =============================================
+// Sistema de RRHH - Distribuidora Jivis
+// =============================================
+
+// ─────────────────────────────────────────────
+// MÓDULO: AUTENTICACIÓN (VERSION FINAL DE LAS TABLAS)
+// ─────────────────────────────────────────────
+
+Table user {
+  id text [pk]
+  name text [not null]
+  email text [not null, unique]
+  email_verified boolean [not null, default: false]
+  image text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  role text [default: 'empleado']
+  banned boolean [default: false]
+  ban_reason text
+  ban_expires timestamp
+}
+
+Table session {
+  id text [pk]
+  expires_at timestamp [not null]
+  token text [not null, unique]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null]
+  ip_address text
+  user_agent text
+  user_id text [not null]
+  impersonated_by text
+}
+
+Table account {
+  note: "Esta tabla maneja las credenciales privadas, nunca es expuesta en el lado del cliente"
+  id text [pk]
+  account_id text [not null]
+  provider_id text [not null]
+  user_id text [not null]
+  access_token text
+  refresh_token text
+  id_token text
+  access_token_expires_at timestamp
+  refresh_token_expires_at timestamp
+  scope text
+  password text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null]
+}
+
+Table verification {
+  note: "Tal vez no se utilice, es para verificación del correo"
+  id text [pk]
+  identifier text [not null]
+  value text [not null]
+  expires_at timestamp [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: ESTRUCTURA ORGANIZACIONAL (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table sucursal {
+  id uuid [pk, default: `gen_random_uuid()`]
+  nombre varchar(100) [not null]
+  direccion text
+  telefono varchar(20)
+  estado varchar(20) [not null, default: 'activa'] // 'activa' | 'inactiva'
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table puesto {
+  id uuid [pk, default: `gen_random_uuid()`]
+  nombre varchar(100) [not null]
+  descripcion text
+  salario_base numeric(12,2) [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table empleado {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [unique]          // FK a user — null si aún no tiene acceso al sistema
+  sucursal_id uuid [not null]
+  puesto_id uuid [not null]
+
+  // Datos personales
+  nombre varchar(100) [not null]
+  apellidos varchar(100) [not null]
+  cedula varchar(20) [not null, unique]
+  telefono varchar(20)
+  fecha_nacimiento date
+  direccion text
+
+  // Datos laborales
+  fecha_ingreso date [not null]
+  salario_base numeric(12,2) [not null]  // Puede diferir del puesto (negociado)
+  tipo_jornada varchar(20) [not null, default: 'completa'] // 'completa' | 'parcial'
+  horas_jornada integer [not null, default: 8] // Horas diarias de la jornada
+
+  // Quiosco
+  pin varchar(6) [unique]        // PIN para marcación en quiosco
+
+  estado varchar(20) [not null, default: 'activo'] // 'activo' | 'inactivo' | 'licencia'
+
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table documento_empleado {
+  id uuid [pk, default: `gen_random_uuid()`]
+  empleado_id uuid [not null]
+  nombre varchar(150) [not null]    // Ej: "Contrato 2024", "Cédula"
+  tipo varchar(50) [not null]       // 'contrato' | 'identificacion' | 'otro'
+  url text [not null]               // URL en Supabase Storage / S3
+  subido_por text [not null]        // user_id de quien subió
+  created_at timestamp [not null, default: `now()`]
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: QUIOSCO (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table dispositivo_quiosco {
+  id uuid [pk, default: `gen_random_uuid()`]
+  nombre varchar(100) [not null]     // Ej: "Quiosco Sucursal Central"
+  sucursal_id uuid [not null]
+  token_hash text [not null, unique] // bcrypt del QUIOSCO_TOKEN, nunca el token en claro
+  activado_por text [not null]       // user_id del admin/rrhh que lo activó
+  expira_en timestamp                // null = no expira
+  activo boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: ASISTENCIA (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table registro_asistencia {
+  id uuid [pk, default: `gen_random_uuid()`]
+  empleado_id uuid [not null]
+  tipo varchar(10) [not null]        // 'entrada' | 'salida'
+  timestamp timestamp [not null, default: `now()`]
+  fuente varchar(20) [not null]      // 'quiosco' | 'manual'
+  dispositivo_id uuid                // FK a dispositivo_quiosco (null si fuente='manual')
+  registrado_por text                // user_id si fuente='manual', null si quiosco
+  nota text                          // Justificación si es edición manual
+  created_at timestamp [not null, default: `now()`]
+}
+
+// Resumen diario precalculado para no recalcular en cada query de planilla
+Table resumen_asistencia_diaria {
+  id uuid [pk, default: `gen_random_uuid()`]
+  empleado_id uuid [not null]
+  fecha date [not null]
+  horas_ordinarias numeric(5,2) [not null, default: 0]
+  horas_extra numeric(5,2) [not null, default: 0]
+  ausente boolean [not null, default: false]
+  tiene_entrada boolean [not null, default: false]
+  tiene_salida boolean [not null, default: false]
+
+  indexes {
+    (empleado_id, fecha) [unique]    // Un resumen por empleado por día
+  }
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: VACACIONES Y AUSENCIAS (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table saldo_vacaciones {
+  id uuid [pk, default: `gen_random_uuid()`]
+  empleado_id uuid [not null, unique]
+  dias_disponibles numeric(6,2) [not null, default: 0]
+  dias_usados numeric(6,2) [not null, default: 0]
+  dias_pendientes numeric(6,2) [not null, default: 0]  // Solicitados y aún no aprobados
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table solicitud_vacacion {
+  id uuid [pk, default: `gen_random_uuid()`]
+  empleado_id uuid [not null]
+  fecha_inicio date [not null]
+  fecha_fin date [not null]
+  dias_habiles integer [not null]    // Calculado al crear, excluye feriados y fines de semana
+  estado varchar(20) [not null, default: 'pendiente'] // 'pendiente' | 'aprobada' | 'rechazada' | 'cancelada'
+  motivo_solicitud text
+  motivo_rechazo text
+  revisado_por text                  // user_id del rrhh/admin que aprobó o rechazó
+  revisado_en timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table feriado {
+  note: "Feriados nacionales — permite calcular días hábiles correctamente"
+  id uuid [pk, default: `gen_random_uuid()`]
+  fecha date [not null, unique]
+  nombre varchar(100) [not null]
+  tipo varchar(20) [not null, default: 'nacional'] // 'nacional' | 'transferible'
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: PLANILLA (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table tramo_renta {
+  note: 'Tramos del impuesto de renta (DGTD)\nSe actualiza manualmente cuando cambia la tabla oficial'
+  id uuid [pk, default: `gen_random_uuid()`]
+  vigente_desde date [not null]
+  limite_inferior numeric(14,2) [not null]  // 0 para el primer tramo
+  limite_superior numeric(14,2)             // null = sin límite (último tramo)
+  porcentaje numeric(5,2) [not null]        // Ej: 10.00, 15.00, 20.00, 25.00
+}
+
+Table planilla {
+  id uuid [pk, default: `gen_random_uuid()`]
+  periodo varchar(20) [not null]         // Ej: '2026-03-Q1' (quincenal) o '2026-03' (mensual)
+  fecha_inicio date [not null]
+  fecha_fin date [not null]
+  tipo varchar(20) [not null, default: 'mensual'] // 'quincenal' | 'mensual'
+  estado varchar(20) [not null, default: 'borrador'] // 'borrador' | 'procesada' | 'pagada'
+  procesada_por text                     // user_id
+  procesada_en timestamp
+  total_bruto numeric(14,2)              // Suma de todos los brutos (calculado al procesar)
+  total_neto numeric(14,2)              // Suma de todos los netos
+  total_deducciones numeric(14,2)
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  indexes {
+    periodo [unique]
+  }
+}
+
+Table detalle_planilla {
+  id uuid [pk, default: `gen_random_uuid()`]
+  planilla_id uuid [not null]
+  empleado_id uuid [not null]
+
+  // Ingresos
+  salario_base numeric(12,2) [not null]
+  horas_extra_cantidad numeric(5,2) [not null, default: 0]
+  horas_extra_monto numeric(12,2) [not null, default: 0]
+  bonos numeric(12,2) [not null, default: 0]
+  otros_ingresos numeric(12,2) [not null, default: 0]
+  salario_bruto numeric(12,2) [not null]  // base + horas_extra + bonos + otros
+
+  // Deducciones del empleado
+  deduccion_ccss numeric(12,2) [not null]     // 9.17% del bruto
+  deduccion_renta numeric(12,2) [not null]    // Según tramos_renta
+  otras_deducciones numeric(12,2) [not null, default: 0]
+  total_deducciones numeric(12,2) [not null]
+
+  // Cargas patronales (referencia, no descuentan del empleado)
+  carga_ccss_patronal numeric(12,2)           // 26.33% del bruto
+  carga_ins numeric(12,2)                     // ~1-3%
+
+  salario_neto numeric(12,2) [not null]       // bruto - total_deducciones
+
+  // Días y ausencias del período
+  dias_trabajados integer [not null]
+  dias_ausente integer [not null, default: 0]
+  dias_vacacion integer [not null, default: 0]
+
+  comprobante_enviado boolean [not null, default: false]
+  comprobante_enviado_en timestamp
+
+  indexes {
+    (planilla_id, empleado_id) [unique]
+  }
+}
+
+// ─────────────────────────────────────────────
+// MÓDULO: AUDITORÍA (VERSION 2 - AUN NO ES DEFINITIVA)
+// ─────────────────────────────────────────────
+
+Table auditoria {
+  id uuid [pk, default: `gen_random_uuid()`]
+  tabla varchar(60) [not null]       // Ej: 'empleado', 'detalle_planilla'
+  registro_id text [not null]        // ID del registro afectado
+  accion varchar(20) [not null]      // 'crear' | 'editar' | 'eliminar'
+  antes jsonb                        // Estado anterior (null en crear)
+  despues jsonb                      // Estado posterior (null en eliminar)
+  realizado_por text [not null]      // user_id
+  ip_address text
+  created_at timestamp [not null, default: `now()`]
+}
+
+// ─────────────────────────────────────────────
+// RELACIONES
+// ─────────────────────────────────────────────
+
+// Autenticación
+Ref: session.user_id > user.id [delete: cascade]
+Ref: account.user_id > user.id [delete: cascade]
+
+// Estructura organizacional
+Ref: empleado.user_id > user.id [delete: set null]
+Ref: empleado.sucursal_id > sucursal.id
+Ref: empleado.puesto_id > puesto.id
+Ref: documento_empleado.empleado_id > empleado.id [delete: cascade]
+Ref: documento_empleado.subido_por > user.id
+
+// Quiosco
+Ref: dispositivo_quiosco.sucursal_id > sucursal.id
+Ref: dispositivo_quiosco.activado_por > user.id
+
+// Asistencia
+Ref: registro_asistencia.empleado_id > empleado.id [delete: cascade]
+Ref: registro_asistencia.dispositivo_id > dispositivo_quiosco.id [delete: set null]
+Ref: registro_asistencia.registrado_por > user.id
+Ref: resumen_asistencia_diaria.empleado_id > empleado.id [delete: cascade]
+
+// Vacaciones
+Ref: saldo_vacaciones.empleado_id > empleado.id [delete: cascade]
+Ref: solicitud_vacacion.empleado_id > empleado.id [delete: cascade]
+Ref: solicitud_vacacion.revisado_por > user.id
+
+// Planilla
+Ref: detalle_planilla.planilla_id > planilla.id [delete: cascade]
+Ref: detalle_planilla.empleado_id > empleado.id
+Ref: planilla.procesada_por > user.id
+
+// Auditoría
+Ref: auditoria.realizado_por > user.id

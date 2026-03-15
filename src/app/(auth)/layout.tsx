@@ -1,4 +1,4 @@
-import { ModeToggle } from "@/shared/components/theme/mode-toggle";
+import { ModeToggle } from "@/components/theme/mode-toggle";
 import React from "react";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
