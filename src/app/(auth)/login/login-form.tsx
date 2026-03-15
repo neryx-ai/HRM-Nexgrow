@@ -1,53 +1,70 @@
 "use client";
 
-import { cn } from "@/shared/lib/utils";
-import { Button } from "@/shared/components/ui/button";
-import { Card, CardContent } from "@/shared/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod/v3";
-
-import Image from "next/image";
-
-import AuthImage from "@/app/assets/urban-scene.png";
+import { valibotResolver } from "@hookform/resolvers/valibot";
+import { LoginData, LoginSchema } from "@/lib/validations/auth";
 import { toast } from "sonner";
 
-export const loginSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(1).max(28),
-});
+import Image from "next/image";
+import AuthImage from "@/app/assets/urban-scene.png";
+import { login } from "@/actions/auth.actions";
+import { useState } from "react";
 
-type FormData = z.infer<typeof loginSchema>;
+import { useRouter } from "next/navigation";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const form = useForm<FormData>({
-    resolver: zodResolver(loginSchema),
+  const router = useRouter();
+  const form = useForm<LoginData>({
+    resolver: valibotResolver(LoginSchema),
     defaultValues: {
       email: "",
       password: "",
     },
   });
 
-  function onSubmit(data: z.infer<typeof loginSchema>) {
-    toast("You submitted the following values:", {
-      description: (
-        <pre className="bg-code text-code-foreground mt-2 w-[320px] overflow-x-auto rounded-md p-4">
-          <code>{JSON.stringify(data, null, 2)}</code>
-        </pre>
-      ),
-      position: "top-right",
-      classNames: {
-        content: "flex flex-col gap-2",
-      },
-      style: {
-        "--border-radius": "calc(var(--radius)  + 4px)",
-      } as React.CSSProperties,
-    });
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(data: LoginData) {
+    setLoading(true);
+    const res = await login(data);
+
+    console.log(res);
+
+    if (res.success) {
+      toast("Inicio de sesión exitoso", {
+        description: "Redirigiendo...",
+        position: "top-right",
+        classNames: {
+          content: "flex flex-col gap-2",
+        },
+        style: {
+          "--border-radius": "calc(var(--radius)  + 4px)",
+        } as React.CSSProperties,
+      });
+
+      router.push("/dashboard");
+    } else {
+      toast("Error al iniciar sesión", {
+        description: res.message,
+        position: "top-right",
+        classNames: {
+          content: "flex flex-col gap-2",
+        },
+        style: {
+          "--border-radius": "calc(var(--radius)  + 4px)",
+        } as React.CSSProperties,
+      });
+    }
+
+    setLoading(false);
   }
 
   return (
@@ -76,6 +93,11 @@ export function LoginForm({
                       {...field}
                       aria-invalid={fieldState.invalid}
                     />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
                   </Field>
                 )}
               />
@@ -101,6 +123,11 @@ export function LoginForm({
                       aria-invalid={fieldState.invalid}
                       autoComplete="off"
                     />
+                    {fieldState.error && (
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
+                    )}
                   </Field>
                 )}
               />

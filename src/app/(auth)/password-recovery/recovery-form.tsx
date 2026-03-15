@@ -1,13 +1,13 @@
-import { cn } from "@/shared/lib/utils";
-import { Button } from "@/shared/components/ui/button";
-import { Card, CardContent } from "@/shared/components/ui/card";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Field,
   FieldGroup,
   FieldLabel,
   FieldSeparator,
-} from "@/shared/components/ui/field";
-import { Input } from "@/shared/components/ui/input";
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import Image from "next/image";
 
 import AuthImage from "@/app/assets/urban-scene.png";
