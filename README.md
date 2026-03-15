@@ -35,9 +35,11 @@ pnpm run db:migrate
 
 ```env
 DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/jivis"
+BETTER_AUTH_SECRET=SMt**********************Neu
+BETTER_AUTH_URL=http://localhost:3000
 ```
 
-## Probar app en vivo
+## Probar app en vivo (RECOMENDADO)
 
 La app ya esta en linea implementada en Vercel, puede visitarla en "[tfg-jivis-app.vercel.app](https://tfg-jivis-app.vercel.app/)", donde conforme se publiquen cambios en la rama main se actualiza la aplicación para los usuarios finales.
 
@@ -77,10 +79,15 @@ Para el avance 2 se muestran los avances de desarrollo:
 - Se realizo la conexión con la base de datos PostgreSQL
 - Se crearon los modelos de Auth de la base de datos con Drizzle ORM en `src/db/schema/auth.schema.ts`
 - Se configuraron los roles de los usuarios en `src/lib/permissions.ts`
-- Se completo el sistema de login.
+- Se completo el sistema de inicio de sesión.
 - En el sidebar de la aplicación ahora se filtran los enlaces según el rol del usuario. Permitiendo acceso solo a las funcionalidades correspondientes.
 - Se agrego un Avatar del usuario en el navbar con un menu desplegable para cerrar sesión y acceder a su perfil.
 - Se implemento un formulario para actualizar los datos personales del usuario en la pagina de perfil.
+
+TO-DO: 
+- Auth: Falta en el modulo de empleados, enviar invitación por correo electronico a los nuevos empleados, el sistema genera una contraseña termporal que le llega al correo al empleado y el empleado debe ir a su perfil a actualizar su contraseña.
+- Auth: Recuperación de contraseña: Proximamente implementaré el SMTP para envio de correos, necesario para enviar el correo de recuperación de contraseñas a los empleados.
+- S3/R2 Storage: Tendré una sesión con la empresa para discutir donde almacenar los archivos relacionados con empleados y demás, de momento para pruebas estoy utilizando Cloudflare R2, aunque aun no lo agrego al Gitlab ni a la web publica.
 
 ### Base de datos v2
 
