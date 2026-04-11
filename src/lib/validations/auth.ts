@@ -21,51 +21,6 @@ export const LoginSchema = v.object({
  */
 export type LoginData = v.InferOutput<typeof LoginSchema>;
 
-/**
- * Schema para el registro
- */
-export const RegisterSchema = v.object({
-  invitationCode: v.pipe(
-    v.string("El código de invitación debe ser una cadena de texto."),
-    v.nonEmpty("Por favor, introduce el código de invitación."),
-    v.length(6, "El código de invitación debe tener 6 caracteres."),
-    v.regex(
-      /^[A-Za-z0-9]{6}$/,
-      "El código de invitación debe tener 6 caracteres.",
-    ),
-  ),
-  email: v.pipe(
-    v.string("El correo electrónico debe ser una cadena de texto."),
-    v.nonEmpty("Por favor, introduce tu correo electrónico."),
-    v.email("La dirección de correo electrónico no tiene un formato válido."),
-  ),
-  password: v.pipe(
-    v.string("La contraseña debe ser una cadena de texto."),
-    v.nonEmpty("Por favor, introduce tu contraseña."),
-    v.minLength(8, "La contraseña debe tener 8 caracteres o más."),
-    v.regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-      "La contraseña debe contener al menos una mayúscula, una minúscula, un número y un carácter especial.",
-    ),
-  ),
-  passwordConfirmation: v.pipe(
-    v.string("La confirmación de la contraseña debe ser una cadena de texto."),
-    v.nonEmpty("Por favor, confirma tu contraseña."),
-    v.minLength(
-      8,
-      "La confirmación de la contraseña debe tener 8 caracteres o más.",
-    ),
-  ),
-});
-
-/**
- * Tipo de datos para el registro
- */
-export type RegisterData = v.InferOutput<typeof RegisterSchema>;
-
-/**
- * Schema para actualizar el perfil del usuario
- */
 export const UpdateProfileSchema = v.object({
   name: v.pipe(
     v.string("El nombre debe ser una cadena de texto."),

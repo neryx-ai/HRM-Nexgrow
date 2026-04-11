@@ -28,7 +28,7 @@ function MySidebar() {
   const { data: session } = authClient.useSession();
 
   React.useEffect(() => {
-    console.log(session?.user.role);
+    void session?.user.role;
   }, [session]);
 
   const accessEmplaados = authClient.admin.checkRolePermission({
@@ -82,7 +82,30 @@ function MySidebar() {
   return (
     <Sidebar variant="floating">
       <SidebarHeader>
-        <h2 className="text-lg font-semibold m-auto py-3">LOGO</h2>
+        <div className="flex items-center justify-center py-3">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 40 40"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-primary"
+            aria-label="Jivis Logo"
+          >
+            <rect width="40" height="40" rx="8" fill="currentColor" opacity="0.1" />
+            <text
+              x="50%"
+              y="55%"
+              dominantBaseline="middle"
+              textAnchor="middle"
+              fill="currentColor"
+              fontSize="18"
+              fontWeight="bold"
+            >
+              J
+            </text>
+          </svg>
+        </div>
       </SidebarHeader>
       <SidebarSeparator className="ml-0" />
       <SidebarContent>

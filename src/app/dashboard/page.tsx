@@ -1,6 +1,3 @@
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-
 export default function Home() {
   return (
     <div className="p-2">
@@ -11,18 +8,6 @@ export default function Home() {
       </p>
 
       <hr className="my-5" />
-
-      {/* <p>Acceso a las paginas de autenticación temporalmente:</p>
-      <div className="flex gap-2 mt-2">
-        <Link href="/login">
-          <Button className="cursor-pointer">Inicio de sesión</Button>
-        </Link>
-        <Link href="/password-recovery">
-          <Button variant="outline" className="cursor-pointer">
-            Recuperar contraseña
-          </Button>
-        </Link>
-      </div> */}
     </div>
   );
 }

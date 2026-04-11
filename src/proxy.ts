@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 // Rutas públicas que no requieren autenticación
-const publicPaths = ["/login", "/register", "/password-recovery", "/api/auth"];
+const publicPaths = ["/login", "/password-recovery", "/api/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return publicPaths.some((path) => pathname.startsWith(path));

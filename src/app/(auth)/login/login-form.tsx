@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import Image from "next/image";
 import AuthImage from "@/app/assets/urban-scene.png";
 import { login } from "@/actions/auth.actions";
-import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -30,13 +29,8 @@ export function LoginForm({
     },
   });
 
-  const [loading, setLoading] = useState(false);
-
   async function onSubmit(data: LoginData) {
-    setLoading(true);
     const res = await login(data);
-
-    console.log(res);
 
     if (res.success) {
       toast("Inicio de sesión exitoso", {
@@ -63,8 +57,6 @@ export function LoginForm({
         } as React.CSSProperties,
       });
     }
-
-    setLoading(false);
   }
 
   return (
@@ -146,10 +138,6 @@ export function LoginForm({
           </div>
         </CardContent>
       </Card>
-      {/* <FieldDescription className="px-6 text-center">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
-      </FieldDescription> */}
     </div>
   );
 }
