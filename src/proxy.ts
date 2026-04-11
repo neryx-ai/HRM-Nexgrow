@@ -1,7 +1,9 @@
 import { auth } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/db/drizzle";
+import { user } from "@/db/schema/auth.schema";
+import { eq } from "drizzle-orm";
 
-// Rutas públicas que no requieren autenticación
 const publicPaths = ["/login", "/password-recovery", "/api/auth"];
 
 function isPublicPath(pathname: string): boolean {
@@ -11,35 +13,41 @@ function isPublicPath(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // console.log("Proxy request: ", pathname);
-
-  // Permitir rutas públicas
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  // Verificar sesión solo en rutas del dashboard
   if (pathname.startsWith("/dashboard") || pathname === "/") {
     const session = await auth.api.getSession({
       headers: request.headers,
     });
 
-    // Si no hay sesión y no es ruta pública, redirigir a login
     if (!session) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Verificar rol para rutas específicas
-    const userRole = (session.user as { role?: string })?.role || "empleado";
+    const userId = session.user.id;
 
-    // Rutas exclusivas de admin
+    const [dbUser] = await db
+      .select({ mustChangePassword: user.mustChangePassword, role: user.role })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (dbUser?.mustChangePassword && pathname !== "/dashboard/change-password") {
+      return NextResponse.redirect(
+        new URL("/dashboard/change-password", request.url),
+      );
+    }
+
+    const userRole = dbUser?.role || "empleado";
+
     if (pathname.startsWith("/dashboard/admin") && userRole !== "admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
-    // Rutas de RRHH
     if (
       pathname.startsWith("/dashboard/rrhh") &&
       !["admin", "rrhh"].includes(userRole)
