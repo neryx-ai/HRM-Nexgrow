@@ -4,24 +4,14 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { ActionResponse } from "./types";
 import { db } from "@/db/drizzle";
-import { user, account } from "@/db/schema/auth.schema";
-import { eq, and } from "drizzle-orm";
+import { user } from "@/db/schema/auth.schema";
+import { eq } from "drizzle-orm";
 import * as v from "valibot";
 import {
   UpdateProfileSchema,
   UpdatePasswordSchema,
-  type UpdateProfileData,
-  type UpdatePasswordData,
 } from "@/lib/validations/auth";
 import { revalidatePath } from "next/cache";
-
-export async function signup(formData: unknown): Promise<ActionResponse> {
-  return {
-    success: true,
-    message: "Usuario registrado exitosamente.",
-    data: {},
-  };
-}
 
 export async function login(formData: unknown): Promise<ActionResponse> {
   try {
@@ -67,7 +57,7 @@ export async function logout(): Promise<ActionResponse> {
       message: "Sesión cerrada exitosamente.",
       data: {},
     };
-  } catch (error) {
+  } catch {
     return {
       success: false,
       message: "Error al cerrar sesión.",
@@ -206,28 +196,7 @@ export async function updatePassword(
       };
     }
 
-    // Verificar la contraseña actual usando Better-Auth
-    // const userAccount = await db
-    //   .select()
-    //   .from(account)
-    //   .where(
-    //     and(
-    //       eq(account.userId, session.user.id),
-    //       eq(account.providerId, "email-password"),
-    //     ),
-    //   )
-    //   .then((rows) => rows[0]);
-
-    // if (!userAccount?.password) {
-    //   return {
-    //     success: false,
-    //     message: "No se encontró la cuenta de contraseña",
-    //     data: {},
-    //   };
-    // }
-
-    // Cambiar la contraseña (changePassword ya verifica la contraseña actual)
-    const data = await auth.api.changePassword({
+    await auth.api.changePassword({
       headers: await headers(),
       body: {
         newPassword: parsed.output.newPassword,
@@ -235,8 +204,6 @@ export async function updatePassword(
         revokeOtherSessions: true,
       },
     });
-
-    console.log("Password updated data: ", data);
 
     revalidatePath("/dashboard/profile");
 
