@@ -89,11 +89,17 @@ export async function createUser(
 
     const tempPassword = generateTempPassword();
 
-    const signUpResult = await auth.api.signUpEmail({
+    const assignedRole = role ?? "empleado";
+
+    const signUpResult = await auth.api.createUser({
       body: {
         name,
         email,
         password: tempPassword,
+        role: assignedRole,
+        data: {
+          mustChangePassword: true,
+        },
       },
     });
 
@@ -104,12 +110,6 @@ export async function createUser(
         data: {},
       };
     }
-
-    const assignedRole = role ?? "empleado";
-    await db
-      .update(user)
-      .set({ mustChangePassword: true, role: assignedRole })
-      .where(eq(user.email, email));
 
     const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
     const html = emailService.buildWelcomeEmailHtml({

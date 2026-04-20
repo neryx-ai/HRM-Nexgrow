@@ -96,3 +96,28 @@ Se creo un nuevo modelo de base de datos para el sistema de RRHH, el cual se enc
 Se implemento el diseño en .dbml para poder visualizar el modelo de base de datos de manera mas clara y organizada.
 
 Se puede observar que las tablas para autenticación estan en su version final, mientras que el resto de tablas estan en version 2 y aun no son definitivas.
+
+
+## Avance 3
+
+- Se implemento el sistema de recuperación de contraseña con envio de correo electronico.
+- Se implemento el sistema de cambio obligatorio de contraseña al primer inicio de sesión.
+- Se implemento el sistema de creación de usuarios con envio de correo electronico con contraseña temporal.
+- Se crearon los placeholders de .env en .env.example
+- Se creo un logger para registrar los eventos de la aplicación en `src/lib/logger.ts`
+- Se creo la integración con nodemailer para envio de correos electronicos, con alternativa de mostrar en los logs si no se configura el SMTP.
+- Se creo el campo "must_change_password" en el modelo de usuario para indicar si el usuario debe cambiar su contraseña al primer inicio de sesión.
+- Se creo el action de creación de usuario y envio de correo electronico con contraseña temporal.
+- Change password terminado
+- Redireccion automatica a change password si "must_change_password" es true
+- Formulario de recuperación de contraseña implementado
+
+**Deuda técnica corregida**
+- Se corrigieron varios detalles de la implementación anterior (dependencias que ya no se usan, codigo comentado, etc.)
+
+### Notas del avance 3
+
+Se pueden apreciar los modulos de **Empleados**, **Sucursales** y **Puestos** con sus respectivas funcionalidades basicas.
+
+No se ha conectado el servidor SMTP para el envio de correos electronicos en la app en produccion, unicamente se han hecho pruebas en local, por lo que los correos de momento se mostrarán en los logs de la aplicacion.
+

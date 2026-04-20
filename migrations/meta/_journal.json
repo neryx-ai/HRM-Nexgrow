@@ -15,6 +15,13 @@
       "when": 1775960000000,
       "tag": "0001_add_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775873638235,
+      "tag": "0002_estructura_organizacional",
+      "breakpoints": true
     }
   ]
 }
