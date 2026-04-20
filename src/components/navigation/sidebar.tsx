@@ -15,6 +15,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   BookUser,
+  Briefcase,
   Building2,
   ChartArea,
   LayoutDashboard,
@@ -125,7 +126,7 @@ function MySidebar() {
 
           {accessEmplaados && (
             <SidebarMenuItem>
-              <Link href="/dashboard/employees">
+              <Link href="/dashboard/empleados">
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-base cursor-pointer"
@@ -143,13 +144,27 @@ function MySidebar() {
 
           {accessBranches && (
             <SidebarMenuItem>
-              <Link href="/dashboard/branches">
+              <Link href="/dashboard/sucursales">
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-base cursor-pointer"
                 >
                   <Building2 className="size-5" />
                   <span>Sucursales</span>
+                </Button>
+              </Link>
+            </SidebarMenuItem>
+          )}
+
+          {accessBranches && (
+            <SidebarMenuItem>
+              <Link href="/dashboard/puestos">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-base cursor-pointer"
+                >
+                  <Briefcase className="size-5" />
+                  <span>Puestos</span>
                 </Button>
               </Link>
             </SidebarMenuItem>
