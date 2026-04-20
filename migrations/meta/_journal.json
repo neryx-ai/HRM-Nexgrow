@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1775870409794,
+      "tag": "0000_brief_silvermane",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775960000000,
+      "tag": "0001_add_must_change_password",
+      "breakpoints": true
+    }
+  ]
+}
