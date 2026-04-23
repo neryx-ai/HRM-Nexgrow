@@ -121,3 +121,9 @@ Se pueden apreciar los modulos de **Empleados**, **Sucursales** y **Puestos** co
 
 No se ha conectado el servidor SMTP para el envio de correos electronicos en la app en produccion, unicamente se han hecho pruebas en local, por lo que los correos de momento se mostrarán en los logs de la aplicacion.
 
+## Avance 4
+
+21-abr
+
+Se añadio el modulo de **Asistencia** con sus respectivas funcionalidades basicas.
+Se creo la pagina de Quiosco donde los empleados ingresan el pin al entrar y al salir y la entrada y salida es registrada automaticamente.

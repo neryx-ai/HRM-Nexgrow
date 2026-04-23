@@ -200,7 +200,7 @@ function MySidebar() {
 
           {accessAttendance && (
             <SidebarMenuItem>
-              <Link href="/dashboard/check-in-out">
+              <Link href="/dashboard/asistencia">
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-base cursor-pointer"

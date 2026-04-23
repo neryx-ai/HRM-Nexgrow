@@ -22,6 +22,13 @@
       "when": 1775873638235,
       "tag": "0002_estructura_organizacional",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776819064328,
+      "tag": "0003_certain_the_hand",
+      "breakpoints": true
     }
   ]
 }
