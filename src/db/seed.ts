@@ -3,6 +3,7 @@ import { db } from "@/db/drizzle";
 import { user } from "@/db/schema/auth.schema";
 import { sucursal } from "@/db/schema/sucursal.schema";
 import { puesto } from "@/db/schema/puesto.schema";
+import { feriado } from "@/db/schema/feriado.schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -88,11 +89,43 @@ async function seedPuestos() {
   logger.info("SEED", "5 puestos creados");
 }
 
+async function seedFeriados() {
+  logger.info("SEED", "Verificando feriados...");
+
+  const existing = await db.select({ id: feriado.id }).from(feriado).limit(1);
+  if (existing.length > 0) {
+    logger.info("SEED", "Ya existen feriados. Saltando...");
+    return;
+  }
+
+  const feriadosCR2026 = [
+    { fecha: "2026-01-01", nombre: "Año Nuevo", tipo: "nacional" },
+    { fecha: "2026-03-19", nombre: "Día de San José", tipo: "nacional" },
+    { fecha: "2026-04-02", nombre: "Jueves Santo", tipo: "religioso" },
+    { fecha: "2026-04-03", nombre: "Viernes Santo", tipo: "religioso" },
+    { fecha: "2026-04-11", nombre: "Día de Juan Santamaría", tipo: "nacional" },
+    { fecha: "2026-05-01", nombre: "Día del Trabajador", tipo: "nacional" },
+    { fecha: "2026-06-29", nombre: "San Pedro y San Pablo", tipo: "religioso" },
+    { fecha: "2026-07-25", nombre: "Anexión de Guanacaste", tipo: "nacional" },
+    { fecha: "2026-08-02", nombre: "Virgen de los Ángeles", tipo: "religioso" },
+    { fecha: "2026-08-15", nombre: "Asunción de la Virgen", tipo: "religioso" },
+    { fecha: "2026-09-15", nombre: "Independencia de Centroamérica", tipo: "nacional" },
+    { fecha: "2026-10-12", nombre: "Día de las Culturas", tipo: "nacional" },
+    { fecha: "2026-12-01", nombre: "Abolición del Ejército", tipo: "nacional" },
+    { fecha: "2026-12-25", nombre: "Navidad", tipo: "nacional" },
+  ];
+
+  await db.insert(feriado).values(feriadosCR2026);
+
+  logger.info("SEED", `${feriadosCR2026.length} feriados de Costa Rica 2026 creados`);
+}
+
 async function seed() {
   logger.info("SEED", "=== Iniciando seed ===");
   await seedAdmin();
   await seedSucursales();
   await seedPuestos();
+  await seedFeriados();
   logger.info("SEED", "=== Seed completado exitosamente ===");
 }
 

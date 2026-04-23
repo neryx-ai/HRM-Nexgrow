@@ -6,3 +6,6 @@ export * from "./schema/documento-empleado.schema";
 export * from "./schema/dispositivo-quiosco.schema";
 export * from "./schema/registro-asistencia.schema";
 export * from "./schema/resumen-asistencia-diaria.schema";
+export * from "./schema/feriado.schema";
+export * from "./schema/saldo-vacaciones.schema";
+export * from "./schema/solicitud-vacacion.schema";

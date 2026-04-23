@@ -17,6 +17,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import { emailService } from "@/lib/email";
+import { inicializarSaldoVacacion } from "@/actions/vacacion.actions";
 import crypto from "crypto";
 
 async function generateUniquePin(): Promise<string> {
@@ -224,6 +225,8 @@ export async function createEmpleado(
         pin,
       })
       .returning();
+
+    await inicializarSaldoVacacion(newEmpleado.id, data.fechaIngreso);
 
     const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
     const html = emailService.buildWelcomeEmailHtml({
