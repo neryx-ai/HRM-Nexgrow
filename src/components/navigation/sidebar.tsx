@@ -32,7 +32,7 @@ function MySidebar() {
     void session?.user.role;
   }, [session]);
 
-  const accessEmplaados = authClient.admin.checkRolePermission({
+  const accessEmpleados = authClient.admin.checkRolePermission({
     permission: {
       empleado: ["view-own"],
     },
@@ -124,9 +124,9 @@ function MySidebar() {
             </Link>
           </SidebarMenuItem>
 
-          {accessEmplaados && (
+          {accessEmpleados && (
             <SidebarMenuItem>
-              <Link href="/dashboard/empleados">
+              <Link href={`/dashboard/empleados`}>
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-base cursor-pointer"
@@ -200,7 +200,7 @@ function MySidebar() {
 
           {accessAttendance && (
             <SidebarMenuItem>
-              <Link href="/dashboard/check-in-out">
+              <Link href="/dashboard/asistencia">
                 <Button
                   variant="ghost"
                   className="w-full justify-start text-base cursor-pointer"

@@ -22,6 +22,27 @@
       "when": 1775873638235,
       "tag": "0002_estructura_organizacional",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776819064328,
+      "tag": "0003_certain_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776983133692,
+      "tag": "0004_handy_electro",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1776984535235,
+      "tag": "0005_clammy_ares",
+      "breakpoints": true
     }
   ]
 }

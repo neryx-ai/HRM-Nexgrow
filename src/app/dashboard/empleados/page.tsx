@@ -2,6 +2,12 @@ import { getEmpleados } from "@/actions/empleado.actions";
 import { getSucursales } from "@/actions/sucursal.actions";
 import { getPuestos } from "@/actions/puesto.actions";
 import { EmpleadosManager } from "@/components/modules/empleados/empleados-manager";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { db } from "@/db/drizzle";
+import { empleado } from "@/db/schema/empleado.schema";
+import { eq } from "drizzle-orm";
 
 interface EmpleadoRow {
   empleado: {
@@ -50,6 +56,21 @@ interface PuestoItem {
 }
 
 export default async function EmpleadosPage() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const userRole = (session?.user as { role?: string })?.role || "empleado";
+
+  if (userRole === "empleado" && session?.user?.id) {
+    const [emp] = await db
+      .select({ id: empleado.id })
+      .from(empleado)
+      .where(eq(empleado.userId, session.user.id))
+      .limit(1);
+
+    if (emp) {
+      redirect(`/dashboard/empleados/${emp.id}`);
+    }
+  }
+
   const [empleadosRes, sucursalesRes, puestosRes] = await Promise.all([
     getEmpleados(),
     getSucursales(),

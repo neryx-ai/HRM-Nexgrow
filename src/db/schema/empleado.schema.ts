@@ -16,6 +16,10 @@ import { user } from "./auth.schema";
 import { sucursal } from "./sucursal.schema";
 import { puesto } from "./puesto.schema";
 import { documentoEmpleado } from "./documento-empleado.schema";
+import { registroAsistencia } from "./registro-asistencia.schema";
+import { resumenAsistenciaDiaria } from "./resumen-asistencia-diaria.schema";
+import { saldoVacaciones } from "./saldo-vacaciones.schema";
+import { solicitudVacacion } from "./solicitud-vacacion.schema";
 
 export const empleado = pgTable(
   "empleado",
@@ -80,4 +84,8 @@ export const empleadoRelations = relations(empleado, ({ one, many }) => ({
     references: [puesto.id],
   }),
   documentos: many(documentoEmpleado),
+  registrosAsistencia: many(registroAsistencia),
+  resumenesAsistencia: many(resumenAsistenciaDiaria),
+  saldosVacaciones: many(saldoVacaciones),
+  solicitudesVacacion: many(solicitudVacacion),
 }));

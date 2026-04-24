@@ -47,8 +47,8 @@ Para el desarrollo se utiliza una rama "dev" para separar los commits temporales
 
 Cuentas demo para probar la aplicación:
 
-- Usuario: demo.empleado@jivis.com
-- Contraseña: DemoE1234
+- Usuario: marcoferab2001@gmail.com
+- Contraseña: F8$!vViN4oDx
 
 - Usuario: demo.admin@jivis.com
 - Contraseña: DemoA1234!
@@ -121,3 +121,24 @@ Se pueden apreciar los modulos de **Empleados**, **Sucursales** y **Puestos** co
 
 No se ha conectado el servidor SMTP para el envio de correos electronicos en la app en produccion, unicamente se han hecho pruebas en local, por lo que los correos de momento se mostrarán en los logs de la aplicacion.
 
+### Avances 22 y 23 de abril
+
+Se añadio el modulo de **Asistencia** con sus respectivas funcionalidades basicas.
+Se creo la pagina de Quiosco donde los empleados ingresan el pin al entrar y al salir y la entrada y salida es registrada automaticamente.
+
+Se agrego el modulo de **Vacaciones**.
+Se agrego el modulo de **Planilla**.
+Ambos modulos tienen las funcionalidades basicas, pero falta realizar pruebas de uso.
+Planilla aun no envia las colillas de pago a los empleados, pendiente para probar e implementar proximamente, probablemente conectare "resend" para pruebas, asi evitar exponer los datos de correo de la empresa mientras hay cuentas demo que se pueden filtrar...
+
+Se corrigio la pagina de empleados para el usuario cuyo rol es de empleado para que solo pueda ver su perfil.
+El empleado ya puede solicitar dias libres desde la aplicación.
+El admin (Gerente/RRHH) puede aprobar o rechazar las solicitudes de dias libres.
+
+Para pruebas como empleado usar:
+usr: marcoferab2001@gmail.com
+psw: F8$!vViN4oDx
+
+Para pruebas como admin (Gerente/RRHH) usar:
+usr: demo.admin@jivis.com
+psw: DemoA1234!
