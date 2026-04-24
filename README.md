@@ -135,6 +135,12 @@ Se corrigio la pagina de empleados para el usuario cuyo rol es de empleado para 
 El empleado ya puede solicitar dias libres desde la aplicación.
 El admin (Gerente/RRHH) puede aprobar o rechazar las solicitudes de dias libres.
 
+Último commit para el avance 3: [Ver commit](https://gitlab.com/marcoa16b-uned/tfg-jivis-app/-/commit/767f53a2e2b2f816e11ada4e1e326813d040fa84)
+
+Falta realizar pruebas de los modulos, el dashboard de gerencia, RRHH y Empleados. 
+Falta conectar el servidor SMTP para envios de correos.
+Se debe arreglar el modulo de asistencia para los empleados para que solo puedan ver sus propios registros.
+
 Para pruebas como empleado usar:
 usr: marcoferab2001@gmail.com
 psw: F8$!vViN4oDx
