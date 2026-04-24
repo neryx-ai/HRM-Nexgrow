@@ -9,3 +9,8 @@ export * from "./schema/resumen-asistencia-diaria.schema";
 export * from "./schema/feriado.schema";
 export * from "./schema/saldo-vacaciones.schema";
 export * from "./schema/solicitud-vacacion.schema";
+export * from "./schema/tramo-renta.schema";
+export * from "./schema/planilla.schema";
+export * from "./schema/detalle-planilla.schema";
+export * from "./schema/deduccion-adicional.schema";
+export * from "./schema/ingreso-extra.schema";

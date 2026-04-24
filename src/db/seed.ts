@@ -4,6 +4,7 @@ import { user } from "@/db/schema/auth.schema";
 import { sucursal } from "@/db/schema/sucursal.schema";
 import { puesto } from "@/db/schema/puesto.schema";
 import { feriado } from "@/db/schema/feriado.schema";
+import { tramoRenta } from "@/db/schema/tramo-renta.schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -120,12 +121,63 @@ async function seedFeriados() {
   logger.info("SEED", `${feriadosCR2026.length} feriados de Costa Rica 2026 creados`);
 }
 
+async function seedTramosRenta() {
+  logger.info("SEED", "Verificando tramos de renta...");
+
+  const existing = await db.select({ id: tramoRenta.id }).from(tramoRenta).limit(1);
+  if (existing.length > 0) {
+    logger.info("SEED", "Ya existen tramos de renta. Saltando...");
+    return;
+  }
+
+  await db.insert(tramoRenta).values([
+    {
+      limiteInferior: "0",
+      limiteSuperior: "941000",
+      porcentaje: "0",
+      montoExcedente: "0",
+      descripcion: "Exento — hasta ¢941,000 mensual",
+    },
+    {
+      limiteInferior: "941001",
+      limiteSuperior: "1381000",
+      porcentaje: "10",
+      montoExcedente: "0",
+      descripcion: "Tramo 1 — 10% sobre excedente de ¢941,000",
+    },
+    {
+      limiteInferior: "1381001",
+      limiteSuperior: "2423000",
+      porcentaje: "15",
+      montoExcedente: "44000",
+      descripcion: "Tramo 2 — ¢44,000 + 15% sobre excedente de ¢1,381,000",
+    },
+    {
+      limiteInferior: "2423001",
+      limiteSuperior: "4845000",
+      porcentaje: "20",
+      montoExcedente: "200200",
+      descripcion: "Tramo 3 — ¢200,200 + 20% sobre excedente de ¢2,423,000",
+    },
+    {
+      limiteInferior: "4845001",
+      limiteSuperior: null,
+      porcentaje: "25",
+      montoExcedente: "684600",
+      descripcion: "Tramo 4 — ¢684,600 + 25% sobre excedente de ¢4,845,000",
+    },
+  ]);
+
+  logger.info("SEED", "5 tramos de renta de Costa Rica creados");
+}
+
 async function seed() {
   logger.info("SEED", "=== Iniciando seed ===");
   await seedAdmin();
   await seedSucursales();
   await seedPuestos();
   await seedFeriados();
+  await seedTramosRenta();
   logger.info("SEED", "=== Seed completado exitosamente ===");
 }
 

@@ -7,7 +7,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <MySidebar />
-      <main className="w-full">
+      <main className="w-full overflow-x-hidden">
         <MyNavbar />
         {children}
       </main>
