@@ -19,6 +19,7 @@ import {
 import { calcularDiasHabiles } from "@/lib/vacaciones";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function getFeriados(): Promise<ActionResponse> {
   try {
@@ -480,7 +481,7 @@ export async function aprobarRechazarVacacion(
           .where(eq(saldoVacaciones.id, saldo.id));
 
         const { registroAsistencia } = await import("@/db/schema/registro-asistencia.schema");
-        let fechaActual = new Date(solicitud.fechaInicio + "T00:00:00");
+        const fechaActual = new Date(solicitud.fechaInicio + "T00:00:00");
         const fechaFin = new Date(solicitud.fechaFin + "T00:00:00");
 
         while (fechaActual <= fechaFin) {
@@ -514,6 +515,15 @@ export async function aprobarRechazarVacacion(
       "VACACION",
       `Solicitud ${data.solicitudId} ${nuevoEstado} por ${session.user.id}`,
     );
+
+    await registrarAuditoria({
+      tabla: "solicitud_vacacion",
+      registroId: data.solicitudId,
+      accion: data.accion === "aprobar" ? "editar" : "editar",
+      despues: { estado: nuevoEstado },
+      antes: { estado: solicitud.estado },
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,

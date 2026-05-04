@@ -65,7 +65,7 @@ export default async function EmpleadoDetailPage({
 
   if (!result.success || !result.data) {
     return (
-      <div className="p-2">
+      <div className="p-2 pr-4 pb-10">
         <div className="flex items-center gap-3 mb-6">
           <Button variant="ghost" size="icon-sm" asChild>
             <Link href="/dashboard/empleados">
@@ -88,7 +88,7 @@ export default async function EmpleadoDetailPage({
   };
 
   return (
-    <div className="p-2 space-y-6">
+    <div className="p-2 pr-4 pb-10 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon-sm" asChild>
@@ -246,7 +246,7 @@ export default async function EmpleadoDetailPage({
               )}
             </div>
             <Separator />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Estado</p>
                 <Badge
@@ -256,9 +256,9 @@ export default async function EmpleadoDetailPage({
                   {empleado.estado}
                 </Badge>
               </div>
-              <div>
+              <div className="w-full col-span-2">
                 <p className="text-sm text-muted-foreground">ID de usuario</p>
-                <p className="font-mono text-sm">
+                <p className="font-mono text-sm w-full ">
                   {empleado.userId ?? "—"}
                 </p>
               </div>

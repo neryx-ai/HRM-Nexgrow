@@ -18,6 +18,7 @@ import {
   Briefcase,
   Building2,
   ChartArea,
+  FileBarChart,
   LayoutDashboard,
   Settings,
   TreePalm,
@@ -75,6 +76,14 @@ function MySidebar() {
   const accessConfiguration = authClient.admin.checkRolePermission({
     permission: {
       configuracion: ["ver"],
+    },
+    role:
+      (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
+      "empleado",
+  });
+  const accessReportes = authClient.admin.checkRolePermission({
+    permission: {
+      reporte: ["ver-gerencial"],
     },
     role:
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
@@ -207,6 +216,20 @@ function MySidebar() {
                 >
                   <ChartArea className="size-5" />
                   <span>Asistencia</span>
+                </Button>
+              </Link>
+            </SidebarMenuItem>
+          )}
+
+          {accessReportes && (
+            <SidebarMenuItem>
+              <Link href="/dashboard/reportes">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-base cursor-pointer"
+                >
+                  <FileBarChart className="size-5" />
+                  <span>Reportes</span>
                 </Button>
               </Link>
             </SidebarMenuItem>

@@ -96,12 +96,14 @@ interface AsistenciaManagerProps {
   historialInicial: HistorialItem[];
   sucursales: SucursalItem[];
   empleados: EmpleadoItem[];
+  esEmpleado?: boolean;
 }
 
 export function AsistenciaManager({
   historialInicial,
   sucursales,
   empleados,
+  esEmpleado = false,
 }: AsistenciaManagerProps) {
   const [historial, setHistorial] = useState(historialInicial);
   const [search, setSearch] = useState("");
@@ -202,10 +204,8 @@ export function AsistenciaManager({
 
   const formatTime = (date: Date | null) => {
     if (!date) return "—";
-    return new Date(date).toLocaleTimeString("es-CR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const d = new Date(date);
+    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
   const formatDate = (fecha: string) => {
@@ -224,62 +224,70 @@ export function AsistenciaManager({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+      {!esEmpleado && (
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar empleado..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 w-56"
+              />
+            </div>
             <Input
-              placeholder="Buscar empleado..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-56"
+              type="date"
+              value={fechaInicio}
+              onChange={(e) => setFechaInicio(e.target.value)}
+              className="w-40"
             />
+            <Input
+              type="date"
+              value={fechaFin}
+              onChange={(e) => setFechaFin(e.target.value)}
+              className="w-40"
+            />
+            <Select value={sucursalFilter} onValueChange={(value) => {
+              if (value === "all") {
+                setSucursalFilter("");
+              } else {
+                setSucursalFilter(value);
+              }
+            }}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todas las sucursales" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las sucursales</SelectItem>
+                {sucursales.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <Search className="size-4 mr-1" />
+              {isRefreshing ? "Buscando..." : "Buscar"}
+            </Button>
           </div>
-          <Input
-            type="date"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            className="w-40"
-          />
-          <Input
-            type="date"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            className="w-40"
-          />
-          <Select value={sucursalFilter} onValueChange={setSucursalFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Todas las sucursales" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las sucursales</SelectItem>
-              {sucursales.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.nombre}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-          >
-            <Search className="size-4 mr-1" />
-            {isRefreshing ? "Buscando..." : "Buscar"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleCorteAutomatico} disabled={isCorte}>
+              <Scissors className="size-4 mr-1" />
+              {isCorte ? "Procesando..." : "Corte automático"}
+            </Button>
+            <Button onClick={() => setIsManualOpen(true)}>
+              <Plus className="size-4 mr-1" />
+              Registro manual
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleCorteAutomatico} disabled={isCorte}>
-            <Scissors className="size-4 mr-1" />
-            {isCorte ? "Procesando..." : "Corte automático"}
-          </Button>
-          <Button onClick={() => setIsManualOpen(true)}>
-            <Plus className="size-4 mr-1" />
-            Registro manual
-          </Button>
-        </div>
-      </div>
+      )}
 
       <Card>
         <CardHeader>

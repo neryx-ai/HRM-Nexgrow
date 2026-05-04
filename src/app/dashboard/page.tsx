@@ -1,13 +1,20 @@
-export default function Home() {
-  return (
-    <div className="p-2">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="text-foreground/70">
-        Esta pagina estará protegida por un sistema de autenticación y un
-        sistema de autorización por roles.
-      </p>
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { DashboardContent } from "@/components/modules/dashboard/dashboard-content";
 
-      <hr className="my-5" />
+export default async function DashboardPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  return (
+    <div className="space-y-6">
+      <DashboardContent />
     </div>
   );
 }

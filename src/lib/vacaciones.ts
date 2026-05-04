@@ -1,6 +1,6 @@
 import { db } from "@/db/drizzle";
 import { feriado } from "@/db/schema/feriado.schema";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { and, gte, lte } from "drizzle-orm";
 
 export async function calcularDiasHabiles(
   fechaInicio: string,

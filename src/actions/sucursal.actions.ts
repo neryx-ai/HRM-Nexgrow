@@ -13,6 +13,7 @@ import {
 } from "@/lib/validations/sucursal";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function getSucursales(
   search?: string,
@@ -130,6 +131,14 @@ export async function createSucursal(
 
     logger.info("SUCURSAL", `Sucursal creada: ${nombre}`);
 
+    await registrarAuditoria({
+      tabla: "sucursal",
+      registroId: newSucursal.id,
+      accion: "crear",
+      despues: newSucursal,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Sucursal creada exitosamente",
@@ -186,6 +195,14 @@ export async function updateSucursal(
 
     logger.info("SUCURSAL", `Sucursal actualizada: ${id}`);
 
+    await registrarAuditoria({
+      tabla: "sucursal",
+      registroId: id,
+      accion: "editar",
+      despues: updated,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Sucursal actualizada exitosamente",
@@ -234,6 +251,15 @@ export async function toggleSucursalEstado(
     revalidatePath("/dashboard/sucursales");
 
     logger.info("SUCURSAL", `Sucursal ${id} → ${nuevoEstado}`);
+
+    await registrarAuditoria({
+      tabla: "sucursal",
+      registroId: id,
+      accion: "editar",
+      despues: { estado: nuevoEstado },
+      antes: { estado: current.estado },
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,

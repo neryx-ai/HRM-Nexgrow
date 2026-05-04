@@ -5,11 +5,12 @@ import { headers } from "next/headers";
 import { ActionResponse } from "./types";
 import { db } from "@/db/drizzle";
 import { user } from "@/db/schema/auth.schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import * as v from "valibot";
 import { CreateUserSchema } from "@/lib/validations/auth";
 import { emailService } from "@/lib/email";
 import { logger } from "@/lib/logger";
+import { registrarAuditoria } from "@/lib/auditoria";
 import crypto from "crypto";
 
 function generateTempPassword(length = 12): string {
@@ -37,58 +38,23 @@ function generateTempPassword(length = 12): string {
   return arr.join("");
 }
 
-export async function createUser(
-  formData: unknown,
-): Promise<ActionResponse> {
+export async function createUser(formData: unknown): Promise<ActionResponse> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return {
-        success: false,
-        message: "No autorizado",
-        data: {},
-      };
-    }
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
 
     const userRole = (session.user as { role?: string })?.role || "empleado";
-    if (!["admin", "rrhh"].includes(userRole)) {
-      return {
-        success: false,
-        message: "No tenés permisos para crear usuarios",
-        data: {},
-      };
-    }
+    if (!["admin", "rrhh"].includes(userRole)) return { success: false, message: "No tenés permisos", data: {} };
 
     const parsed = v.safeParse(CreateUserSchema, formData);
-    if (!parsed.success) {
-      return {
-        success: false,
-        message: "Datos inválidos",
-        data: { errors: parsed.issues },
-      };
-    }
+    if (!parsed.success) return { success: false, message: "Datos inválidos", data: { errors: parsed.issues } };
 
     const { name, email, role } = parsed.output;
 
-    const [existingUser] = await db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.email, email))
-      .limit(1);
-
-    if (existingUser) {
-      return {
-        success: false,
-        message: "Ya existe un usuario con ese correo electrónico",
-        data: {},
-      };
-    }
+    const [existingUser] = await db.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
+    if (existingUser) return { success: false, message: "Ya existe un usuario con ese correo", data: {} };
 
     const tempPassword = generateTempPassword();
-
     const assignedRole = role ?? "empleado";
 
     const signUpResult = await auth.api.createUser({
@@ -97,56 +63,179 @@ export async function createUser(
         email,
         password: tempPassword,
         role: assignedRole,
-        data: {
-          mustChangePassword: true,
-        },
+        data: { mustChangePassword: true },
       },
     });
 
-    if (!signUpResult) {
-      return {
-        success: false,
-        message: "Error al crear el usuario",
-        data: {},
-      };
-    }
+    if (!signUpResult) return { success: false, message: "Error al crear el usuario", data: {} };
 
     const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
-    const html = emailService.buildWelcomeEmailHtml({
-      name,
-      email,
-      tempPassword,
-      loginUrl: `${baseUrl}/login`,
-    });
+    const html = emailService.buildWelcomeEmailHtml({ name, email, tempPassword, loginUrl: `${baseUrl}/login` });
+    const emailSent = await emailService.sendEmail({ to: email, subject: "Bienvenido/a a Jivis — Sistema de RRHH", html });
 
-    const emailSent = await emailService.sendEmail({
-      to: email,
-      subject: "Bienvenido/a a Jivis — Sistema de RRHH",
-      html,
-    });
-
-    if (!emailSent) {
-      logger.warn("USER", `Usuario creado pero correo no enviado. Credenciales:`, {
-        email,
-        tempPassword,
-      });
-    }
+    if (!emailSent) logger.warn("USER", `Usuario creado pero correo no enviado: ${email}`);
 
     logger.info("USER", `Usuario creado: ${email} (rol: ${assignedRole})`);
+
+    await registrarAuditoria({
+      tabla: "user",
+      registroId: signUpResult.user?.id ?? email,
+      accion: "crear",
+      despues: { email, role: assignedRole },
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,
       message: emailSent
-        ? "Usuario creado exitosamente. Se envió un correo con las credenciales."
-        : "Usuario creado exitosamente. No se pudo enviar el correo — revisá los logs para ver las credenciales temporales.",
+        ? "Usuario creado exitosamente. Se envió un correo."
+        : "Usuario creado. No se pudo enviar el correo — revisá los logs.",
       data: { email },
     };
   } catch (error) {
     logger.error("USER", "Error al crear usuario:", error);
+    return { success: false, message: "Error al crear el usuario", data: {} };
+  }
+}
+
+export async function listUsers(): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    const users = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        banned: user.banned,
+        banReason: user.banReason,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+      })
+      .from(user)
+      .orderBy(desc(user.createdAt));
+
+    return { success: true, message: "Usuarios obtenidos", data: { users } };
+  } catch (error) {
+    logger.error("USER", "Error al listar usuarios:", error);
+    return { success: false, message: "Error al listar usuarios", data: {} };
+  }
+}
+
+export async function updateUserRole(userId: string, role: string): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    if (!["admin", "rrhh", "empleado"].includes(role)) return { success: false, message: "Rol inválido", data: {} };
+
+    await db.update(user).set({ role }).where(eq(user.id, userId));
+
+    logger.info("USER", `Usuario ${userId} → rol ${role}`);
+
+    await registrarAuditoria({
+      tabla: "user",
+      registroId: userId,
+      accion: "editar",
+      despues: { role },
+      realizadoPor: session.user.id,
+    });
+
+    return { success: true, message: "Rol actualizado exitosamente", data: {} };
+  } catch (error) {
+    logger.error("USER", "Error al actualizar rol:", error);
+    return { success: false, message: "Error al actualizar rol", data: {} };
+  }
+}
+
+export async function banUser(userId: string, reason?: string): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    await db.update(user).set({ banned: true, banReason: reason ?? null, updatedAt: new Date() }).where(eq(user.id, userId));
+
+    logger.info("USER", `Usuario ${userId} baneado: ${reason ?? "sin motivo"}`);
+    return { success: true, message: "Usuario baneado exitosamente", data: {} };
+  } catch (error) {
+    logger.error("USER", "Error al banear usuario:", error);
+    return { success: false, message: "Error al banear usuario", data: {} };
+  }
+}
+
+export async function unbanUser(userId: string): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    await db.update(user).set({ banned: false, banReason: null, updatedAt: new Date() }).where(eq(user.id, userId));
+
+    logger.info("USER", `Usuario ${userId} desbaneado`);
+    return { success: true, message: "Usuario desbaneado exitosamente", data: {} };
+  } catch (error) {
+    logger.error("USER", "Error al desbanear usuario:", error);
+    return { success: false, message: "Error al desbanear usuario", data: {} };
+  }
+}
+
+export async function resetUserPassword(userId: string): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    const [targetUser] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
+    if (!targetUser) return { success: false, message: "Usuario no encontrado", data: {} };
+
+    const tempPassword = generateTempPassword();
+
+    await auth.api.createUser({
+      body: {
+        name: targetUser.name,
+        email: targetUser.email,
+        password: tempPassword,
+        role: "empleado",
+        data: { mustChangePassword: true },
+      },
+    });
+
+    const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
+    const html = emailService.buildWelcomeEmailHtml({
+      name: targetUser.name,
+      email: targetUser.email,
+      tempPassword,
+      loginUrl: `${baseUrl}/login`,
+    });
+    const emailSent = await emailService.sendEmail({ to: targetUser.email, subject: "Tu contraseña ha sido restablecida — Jivis RRHH", html });
+
+    if (!emailSent) logger.warn("USER", `Contraseña restablecida pero correo no enviado a ${targetUser.email}: ${tempPassword}`);
+
+    logger.info("USER", `Contraseña restablecida para ${userId}`);
     return {
-      success: false,
-      message: "Error al crear el usuario",
-      data: {},
+      success: true,
+      message: emailSent
+        ? "Contraseña restablecida. Se envió un correo al usuario."
+        : "Contraseña restablecida. No se pudo enviar el correo — revisá los logs.",
+      data: { tempPassword: emailSent ? undefined : tempPassword },
     };
+  } catch (error) {
+    logger.error("USER", "Error al restablecer contraseña:", error);
+    return { success: false, message: "Error al restablecer contraseña", data: {} };
   }
 }
