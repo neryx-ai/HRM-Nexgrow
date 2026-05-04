@@ -378,6 +378,21 @@ export async function getHistorialAsistencia(
     }
 
     const conditions = [];
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+
+    if (userRole === "empleado") {
+      const [emp] = await db
+        .select({ id: empleado.id })
+        .from(empleado)
+        .where(eq(empleado.userId, session.user.id))
+        .limit(1);
+
+      if (!emp) {
+        return { success: true, message: "Sin perfil de empleado", data: { registros: [] } };
+      }
+
+      conditions.push(eq(resumenAsistenciaDiaria.empleadoId, emp.id));
+    }
 
     if (fechaInicio) {
       conditions.push(
@@ -454,6 +469,33 @@ export async function getEmpleadosActivos(): Promise<ActionResponse> {
 
     if (!session?.user) {
       return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+
+    if (userRole === "empleado") {
+      const [emp] = await db
+        .select({
+          id: empleado.id,
+          nombre: empleado.nombre,
+          apellidos: empleado.apellidos,
+          cedula: empleado.cedula,
+          pin: empleado.pin,
+          sucursalNombre: sucursal.nombre,
+          puestoNombre: puesto.nombre,
+          estado: empleado.estado,
+        })
+        .from(empleado)
+        .innerJoin(sucursal, eq(empleado.sucursalId, sucursal.id))
+        .innerJoin(puesto, eq(empleado.puestoId, puesto.id))
+        .where(and(eq(empleado.estado, "activo"), eq(empleado.userId, session.user.id)))
+        .limit(1);
+
+      return {
+        success: true,
+        message: "Empleados activos obtenidos",
+        data: { empleados: emp ? [emp] : [] },
+      };
     }
 
     const results = await db

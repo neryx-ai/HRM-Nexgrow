@@ -1,6 +1,9 @@
 import { getHistorialAsistencia, getEmpleadosActivos } from "@/actions/asistencia.actions";
 import { getSucursales } from "@/actions/sucursal.actions";
 import { AsistenciaManager } from "@/components/modules/asistencia/asistencia-manager";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 interface SucursalItem {
   id: string;
@@ -64,13 +67,26 @@ interface HistorialResponse {
 }
 
 export default async function AsistenciaPage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const userRole = (session.user as { role?: string })?.role || "empleado";
+  const esEmpleado = userRole === "empleado";
+
   const historialResult = await getHistorialAsistencia();
-  const sucursalesResult = await getSucursales();
-  const empleadosResult = await getEmpleadosActivos();
+  const sucursalesResult = esEmpleado ? null : await getSucursales();
+  const empleadosResult = esEmpleado ? null : await getEmpleadosActivos();
+
+  console.log((historialResult.data as HistorialResponse)?.registros);
 
   const historialData = (historialResult.data as HistorialResponse)?.registros || [];
-  const sucursalesData = (sucursalesResult.data as SucursalesResponse)?.sucursales || [];
-  const empleadosData = (empleadosResult.data as EmpleadosResponse)?.empleados || [];
+  const sucursalesData = (sucursalesResult?.data as SucursalesResponse)?.sucursales || [];
+  const empleadosData = (empleadosResult?.data as EmpleadosResponse)?.empleados || [];
 
   return (
     <div className="p-2">
@@ -79,6 +95,7 @@ export default async function AsistenciaPage() {
         historialInicial={historialData}
         sucursales={sucursalesData}
         empleados={empleadosData}
+        esEmpleado={esEmpleado}
       />
     </div>
   );
