@@ -493,9 +493,17 @@ export function PlanillaDetalle({
                           {ings.map((i) => (
                             <p
                               key={i.id}
-                              className="text-xs text-muted-foreground"
+                              className="text-xs text-muted-foreground flex items-center justify-end gap-1"
                             >
                               {i.concepto}: ¢{fmtCRC(i.monto)}
+                              {isBorrador && (
+                                <button
+                                  onClick={() => handleDeleteIngreso(i.id)}
+                                  className="text-destructive hover:text-destructive/80"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              )}
                             </p>
                           ))}
                         </div>

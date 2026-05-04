@@ -5,6 +5,7 @@ import { sucursal } from "@/db/schema/sucursal.schema";
 import { puesto } from "@/db/schema/puesto.schema";
 import { feriado } from "@/db/schema/feriado.schema";
 import { tramoRenta } from "@/db/schema/tramo-renta.schema";
+import { configuracionDeduccion } from "@/db/schema/configuracion-deduccion.schema";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -171,6 +172,25 @@ async function seedTramosRenta() {
   logger.info("SEED", "5 tramos de renta de Costa Rica creados");
 }
 
+async function seedDeducciones() {
+  logger.info("SEED", "Verificando deducciones por defecto...");
+
+  const existing = await db.select({ id: configuracionDeduccion.id }).from(configuracionDeduccion).limit(1);
+  if (existing.length > 0) {
+    logger.info("SEED", "Ya existen deducciones. Saltando...");
+    return;
+  }
+
+  await db.insert(configuracionDeduccion).values([
+    { clave: "ccssEmpleado", valor: "0.0917", descripcion: "CCSS empleado (9.17%)" },
+    { clave: "insEmpleado", valor: "0.01", descripcion: "INS empleado (1%)" },
+    { clave: "bancoPopular", valor: "0.005", descripcion: "Banco Popular (0.5%)" },
+    { clave: "factorHorasExtra", valor: "1.5", descripcion: "Factor multiplicador horas extra" },
+  ]);
+
+  logger.info("SEED", "4 deducciones por defecto creadas");
+}
+
 async function seed() {
   logger.info("SEED", "=== Iniciando seed ===");
   await seedAdmin();
@@ -178,6 +198,7 @@ async function seed() {
   await seedPuestos();
   await seedFeriados();
   await seedTramosRenta();
+  await seedDeducciones();
   logger.info("SEED", "=== Seed completado exitosamente ===");
 }
 

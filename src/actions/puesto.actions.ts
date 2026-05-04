@@ -13,6 +13,7 @@ import {
 } from "@/lib/validations/puesto";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function getPuestos(
   search?: string,
@@ -125,6 +126,14 @@ export async function createPuesto(
 
     logger.info("PUESTO", `Puesto creado: ${nombre}`);
 
+    await registrarAuditoria({
+      tabla: "puesto",
+      registroId: newPuesto.id,
+      accion: "crear",
+      despues: newPuesto,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Puesto creado exitosamente",
@@ -184,6 +193,14 @@ export async function updatePuesto(
 
     logger.info("PUESTO", `Puesto actualizado: ${id}`);
 
+    await registrarAuditoria({
+      tabla: "puesto",
+      registroId: id,
+      accion: "editar",
+      despues: updated,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Puesto actualizado exitosamente",
@@ -224,6 +241,13 @@ export async function deletePuesto(
     revalidatePath("/dashboard/puestos");
 
     logger.info("PUESTO", `Puesto eliminado: ${id}`);
+
+    await registrarAuditoria({
+      tabla: "puesto",
+      registroId: id,
+      accion: "eliminar",
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,

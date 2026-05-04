@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import { emailService } from "@/lib/email";
 import { inicializarSaldoVacacion } from "@/actions/vacacion.actions";
+import { registrarAuditoria } from "@/lib/auditoria";
 import crypto from "crypto";
 
 async function generateUniquePin(): Promise<string> {
@@ -253,6 +254,14 @@ export async function createEmpleado(
 
     logger.info("EMPLEADO", `Empleado creado: ${data.nombre} ${data.apellidos} (PIN: ${pin})`);
 
+    await registrarAuditoria({
+      tabla: "empleado",
+      registroId: newEmpleado.id,
+      accion: "crear",
+      despues: newEmpleado,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: emailSent
@@ -314,6 +323,14 @@ export async function updateEmpleado(
 
     logger.info("EMPLEADO", `Empleado actualizado: ${id}`);
 
+    await registrarAuditoria({
+      tabla: "empleado",
+      registroId: id,
+      accion: "editar",
+      despues: updated,
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Empleado actualizado exitosamente",
@@ -374,6 +391,15 @@ export async function toggleEmpleadoEstado(
     revalidatePath("/dashboard/empleados");
 
     logger.info("EMPLEADO", `Empleado ${id} → ${nuevoEstado}`);
+
+    await registrarAuditoria({
+      tabla: "empleado",
+      registroId: id,
+      accion: "editar",
+      despues: { estado: nuevoEstado },
+      antes: { estado: emp.estado },
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,

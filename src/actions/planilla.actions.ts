@@ -25,10 +25,12 @@ import {
 import {
   calcularPlanillaEmpleado,
   calcularTotalesPlanilla,
+  getDeduccionesConfig,
 } from "@/lib/planilla";
 import { emailService } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function getPlanillas(): Promise<ActionResponse> {
   try {
@@ -313,6 +315,14 @@ export async function crearPlanilla(
       "PLANILLA",
       `Planilla creada: ${newPlanilla.id}, ${empleadosActivos.length} empleados, ${data.tipo}`,
     );
+
+    await registrarAuditoria({
+      tabla: "planilla",
+      registroId: newPlanilla.id,
+      accion: "crear",
+      despues: { tipo: data.tipo, empleados: empleadosActivos.length },
+      realizadoPor: session.user.id,
+    });
 
     return {
       success: true,
@@ -754,6 +764,15 @@ export async function confirmarPlanilla(
 
     logger.info("PLANILLA", `Planilla ${data.planillaId} confirmada por ${session.user.id}`);
 
+    await registrarAuditoria({
+      tabla: "planilla",
+      registroId: data.planillaId,
+      accion: "editar",
+      despues: { estado: "procesada" },
+      antes: { estado: planillaData.estado },
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: "Planilla confirmada exitosamente. Las colillas se están enviando.",
@@ -767,6 +786,8 @@ export async function confirmarPlanilla(
 
 async function enviarColillasEnBackground(planillaId: string): Promise<void> {
   try {
+    const dedConfig = await getDeduccionesConfig();
+
     const detalles = await db
       .select({
         detalle: detallePlanilla,
@@ -831,6 +852,7 @@ async function enviarColillasEnBackground(planillaId: string): Promise<void> {
           monto: dd.monto,
         })),
         salarioNeto: d.detalle.salarioNeto,
+        dedConfig,
       });
 
       const sent = await emailService.sendEmail({
@@ -873,9 +895,14 @@ function buildColillaPagoHtml(data: {
   totalDeduccionesAdicionales: string;
   deduccionesAdicionales: { concepto: string; monto: string }[];
   salarioNeto: string;
+  dedConfig: Record<string, number>;
 }): string {
   const fmt = (n: string) =>
     parseFloat(n).toLocaleString("es-CR", { minimumFractionDigits: 2 });
+
+  const ccssPct = ((data.dedConfig.ccssEmpleado ?? 0) * 100).toFixed(2);
+  const insPct = ((data.dedConfig.insEmpleado ?? 0) * 100).toFixed(1);
+  const bpPct = ((data.dedConfig.bancoPopular ?? 0) * 100).toFixed(1);
 
   const ingresosExtrasRows = data.ingresosExtras
     .map(
@@ -924,10 +951,10 @@ ${ingresosExtrasRows}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e5e4;border-radius:6px;margin-bottom:16px;">
 <tr style="background-color:#f5f5f4;"><td colspan="2" style="padding:8px 12px;font-weight:600;color:#1c1917;font-size:14px;">Deducciones Legales</td></tr>
-<tr><td style="padding:4px 12px;">CCSS (9.17%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.ccssEmpleado)}</td></tr>
-<tr><td style="padding:4px 12px;">INS (1.0%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.insEmpleado)}</td></tr>
+<tr><td style="padding:4px 12px;">CCSS (${ccssPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.ccssEmpleado)}</td></tr>
+<tr><td style="padding:4px 12px;">INS (${insPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.insEmpleado)}</td></tr>
 <tr><td style="padding:4px 12px;">Impuesto Renta</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.impuestoRenta)}</td></tr>
-<tr><td style="padding:4px 12px;">Banco Popular (0.5%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.bancoPopular)}</td></tr>
+<tr><td style="padding:4px 12px;">Banco Popular (${bpPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.bancoPopular)}</td></tr>
 <tr style="border-top:1px solid #e7e5e4;"><td style="padding:8px 12px;font-weight:600;">Total deducciones legales</td><td style="padding:8px 12px;text-align:right;font-weight:600;">¢${fmt(data.totalDeduccionesLegales)}</td></tr>
 </table>
 

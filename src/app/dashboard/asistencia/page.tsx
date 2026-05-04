@@ -82,8 +82,6 @@ export default async function AsistenciaPage() {
   const sucursalesResult = esEmpleado ? null : await getSucursales();
   const empleadosResult = esEmpleado ? null : await getEmpleadosActivos();
 
-  console.log((historialResult.data as HistorialResponse)?.registros);
-
   const historialData = (historialResult.data as HistorialResponse)?.registros || [];
   const sucursalesData = (sucursalesResult?.data as SucursalesResponse)?.sucursales || [];
   const empleadosData = (empleadosResult?.data as EmpleadosResponse)?.empleados || [];

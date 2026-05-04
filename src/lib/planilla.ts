@@ -1,15 +1,46 @@
 import { db } from "@/db/drizzle";
 import { tramoRenta } from "@/db/schema/tramo-renta.schema";
+import { configuracionDeduccion } from "@/db/schema/configuracion-deduccion.schema";
 import { resumenAsistenciaDiaria } from "@/db/schema/resumen-asistencia-diaria.schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { logger } from "@/lib/logger";
 
-export const DEDUCCIONES_POR_DEFECTO = {
-  ccssEmpleado: 0.0917,
-  insEmpleado: 0.01,
-  bancoPopular: 0.005,
-  factorHorasExtra: 1.5,
-} as const;
+let cachedDeducciones: Record<string, number> | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 60_000;
+
+export async function getDeduccionesConfig(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (cachedDeducciones && now - cacheTimestamp < CACHE_TTL) {
+    return cachedDeducciones;
+  }
+
+  const rows = await db.select({ clave: configuracionDeduccion.clave, valor: configuracionDeduccion.valor }).from(configuracionDeduccion).where(eq(configuracionDeduccion.activo, true));
+
+  const requiredKeys = ["ccssEmpleado", "insEmpleado", "bancoPopular", "factorHorasExtra"];
+  const result: Record<string, number> = {};
+
+  for (const key of requiredKeys) {
+    const row = rows.find((r) => r.clave === key);
+    if (!row) {
+      throw new Error(`Configuración faltante: "${key}" no encontrada en configuracion_deduccion. Ejecutá "pnpm seed" o agregala manualmente en Configuración > Deducciones.`);
+    }
+    const parsed = parseFloat(row.valor);
+    if (isNaN(parsed)) {
+      throw new Error(`Configuración inválida: "${key}" tiene valor "${row.valor}" que no es numérico. Corregilo en Configuración > Deducciones.`);
+    }
+    result[key] = parsed;
+  }
+
+  cachedDeducciones = result;
+  cacheTimestamp = now;
+  return result;
+}
+
+export function clearDeduccionesCache(): void {
+  cachedDeducciones = null;
+  cacheTimestamp = 0;
+}
 
 interface DatosEmpleado {
   id: string;
@@ -122,8 +153,9 @@ export async function calcularPlanillaEmpleado(
   ingresosExtras: number = 0,
   deduccionesAdicionales: number = 0,
 ): Promise<ResultadoCalculo> {
+  const deducciones = await getDeduccionesConfig();
   const salarioBase = parseFloat(empleado.salarioBase);
-  const { factorHorasExtra } = DEDUCCIONES_POR_DEFECTO;
+  const { factorHorasExtra, ccssEmpleado: ccssTasa, insEmpleado: insTasa, bancoPopular: bpTasa } = deducciones;
 
   let salarioBruto: number;
   if (tipo === "quincenal") {
@@ -132,11 +164,7 @@ export async function calcularPlanillaEmpleado(
     salarioBruto = salarioBase;
   }
 
-  const { horasOrdinarias, horasExtra } = await getHorasPeriodo(
-    empleado.id,
-    fechaInicio,
-    fechaFin,
-  );
+  const { horasOrdinarias, horasExtra } = await getHorasPeriodo(empleado.id, fechaInicio, fechaFin);
 
   const valorHoraOrdinaria = round2(salarioBase / 30 / empleado.horasJornada);
   const valorHoraExtra = round2(valorHoraOrdinaria * factorHorasExtra);
@@ -144,9 +172,9 @@ export async function calcularPlanillaEmpleado(
 
   const totalIngresos = round2(salarioBruto + montoHorasExtra + ingresosExtras);
 
-  const ccssEmpleado = round2(totalIngresos * DEDUCCIONES_POR_DEFECTO.ccssEmpleado);
-  const insEmpleado = round2(totalIngresos * DEDUCCIONES_POR_DEFECTO.insEmpleado);
-  const bancoPopular = round2(totalIngresos * DEDUCCIONES_POR_DEFECTO.bancoPopular);
+  const ccssEmpleado = round2(totalIngresos * ccssTasa);
+  const insEmpleado = round2(totalIngresos * insTasa);
+  const bancoPopular = round2(totalIngresos * bpTasa);
 
   const salarioGravableRenta = round2(totalIngresos - ccssEmpleado);
   const tramos = await getTramosRentaActivos();
@@ -184,7 +212,7 @@ export function calcularTotalesPlanilla(
   let totalSalariosBrutos = 0;
   let totalHorasExtra = 0;
   let totalBonos = 0;
-  let totalComisiones = 0;
+  const totalComisiones = 0;
   let totalDeduccionesLegales = 0;
   let totalDeduccionesAdicionales = 0;
   let totalSalariosNeto = 0;
