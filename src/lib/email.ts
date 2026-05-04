@@ -73,6 +73,17 @@ async function sendEmail({
     return false;
   }
 
+  const redirectTo = process.env.SMTP_TEST_EMAIL;
+  if (redirectTo && redirectTo !== to) {
+    logger.info("EMAIL", `[TEST MODE] Redirigiendo correo de ${to} → ${redirectTo}`);
+    return sendEmail({
+      to: redirectTo,
+      subject: `[TEST → ${to}] ${subject}`,
+      html,
+      text,
+    });
+  }
+
   const transporter = createTransporter();
   if (!transporter) return false;
 
