@@ -25,9 +25,15 @@ import {
   Wallet,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import Image from "next/image";
+import LogoImage from "@/app/assets/logo-jivis.png";
+import { Session } from "@/types/sessions";
 
-function MySidebar() {
-  const { data: session } = authClient.useSession();
+function MySidebar({ 
+  session 
+}: { 
+  session: Session
+}) {
 
   React.useEffect(() => {
     void session?.user.role;
@@ -89,32 +95,14 @@ function MySidebar() {
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
       "empleado",
   });
+
   return (
     <Sidebar variant="floating">
       <SidebarHeader>
         <div className="flex items-center justify-center py-3">
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 40 40"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            className="text-primary"
-            aria-label="Jivis Logo"
-          >
-            <rect width="40" height="40" rx="8" fill="currentColor" opacity="0.1" />
-            <text
-              x="50%"
-              y="55%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              fill="currentColor"
-              fontSize="18"
-              fontWeight="bold"
-            >
-              J
-            </text>
-          </svg>
+          <figure className="rounded-sm border border-foreground/16 overflow-hidden">
+            <Image src={LogoImage} alt="Jivis Logo" width={40} height={40} />
+          </figure>
         </div>
       </SidebarHeader>
       <SidebarSeparator className="ml-0" />
