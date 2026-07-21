@@ -12,9 +12,12 @@ import { toast } from "sonner";
 
 import Image from "next/image";
 import AuthImage from "@/app/assets/urban-scene.png";
+import LogoImage from "@/app/assets/logo-jivis.png";
 import { login } from "@/actions/auth.actions";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export function LoginForm({
   className,
@@ -28,6 +31,8 @@ export function LoginForm({
       password: "",
     },
   });
+
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(data: LoginData) {
     const res = await login(data);
@@ -65,8 +70,11 @@ export function LoginForm({
         <CardContent className="grid p-0 md:grid-cols-2">
           <form className="p-6 md:p-8" onSubmit={form.handleSubmit(onSubmit)}>
             <FieldGroup>
-              <div className="flex flex-col items-center gap-2 text-center">
-                <h1 className="text-2xl font-bold">Bienvenido</h1>
+              <div className="flex flex-col items-center gap-0 text-center">
+                <figure className="rounded overflow-hidden border border-foreground/20">
+                  <Image src={LogoImage} alt="Auth" width={50} height={50} />
+                </figure>
+                <h1 className="text-3xl font-bold font-heading">Bienvenido</h1>
                 <p className="text-muted-foreground text-balance">
                   Inicia sesión en tu cuenta
                 </p>
@@ -98,28 +106,36 @@ export function LoginForm({
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field>
-                    <div className="flex items-center">
-                      <FieldLabel htmlFor="password">Contraseña</FieldLabel>
-                      <a
-                        href="/password-recovery"
-                        className="ml-auto text-sm underline-offset-2 hover:underline"
+                    <FieldLabel htmlFor="password">Contraseña</FieldLabel>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="••••••••"
+                        aria-invalid={fieldState.invalid}
+                        autoComplete="off"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                       >
-                        ¿Olvidaste tu contraseña?
-                      </a>
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
-                    <Input
-                      id="password"
-                      type="password"
-                      required
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                      autoComplete="off"
-                    />
                     {fieldState.error && (
                       <p className="text-destructive text-sm">
                         {fieldState.error.message}
                       </p>
                     )}
+                    <a
+                      href="/password-recovery"
+                      className="w-full text-right text-primary/80 text-sm underline-offset-2 hover:underline"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </a>
                   </Field>
                 )}
               />

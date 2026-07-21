@@ -1,6 +1,5 @@
 "use client";
 
-import { Separator } from "@/components/ui/separator";
 import { ModeToggle } from "../theme/mode-toggle";
 import MySidebarTrigger from "./my-sidebar-trigger";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
@@ -19,42 +18,33 @@ import Link from "next/link";
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
+const PATH_LABELS: Record<string, string> = {
+  "": "Dashboard",
+  empleados: "Empleados",
+  sucursales: "Sucursales",
+  payroll: "Planilla",
+  vacations: "Vacaciones",
+  asistencia: "Asistencia",
+  settings: "Configuración",
+  profile: "Mi Perfil",
+  puestos: "Puestos",
+  reportes: "Reportes",
+  "change-password": "Cambiar contraseña",
+};
+
+function getPathLabel(pathname: string): string {
+  const segments = pathname.split("/").filter(Boolean);
+  // Asume que el navbar vive bajo /dashboard; toma el segmento posterior.
+  const segment = segments[1] ?? "";
+  return PATH_LABELS[segment] ?? "";
+}
+
 function MyNavbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
-
-  const actualPath = pathname.split("/")[2];
-  let pathLabel = "";
-  switch (actualPath) {
-    case "":
-      pathLabel = "Dashboard";
-      break;
-    case "employees":
-      pathLabel = "Empleados";
-      break;
-    case "branches":
-      pathLabel = "Sucursales";
-      break;
-    case "payroll":
-      pathLabel = "Planilla";
-      break;
-    case "vacations":
-      pathLabel = "Vacaciones";
-      break;
-    case "check-in-out":
-      pathLabel = "Asistencia";
-      break;
-    case "settings":
-      pathLabel = "Configuración";
-      break;
-    case "profile":
-      pathLabel = "Mi Perfil";
-      break;
-    default:
-      pathLabel = "";
-  }
+  const pathLabel = getPathLabel(pathname);
 
   const signOut = async () => {
     await authClient.signOut();
@@ -64,9 +54,9 @@ function MyNavbar() {
   return (
     <div className="w-full relative flex items-center p-2 pr-4">
       <div className="flex items-center gap-2 w-full bg-sidebar p-2 border border-foreground/5 shadow-sm rounded">
-        <div className="flex items-center gap-2 w-full">
+        <div className="relative flex items-center gap-2 w-full">
           <MySidebarTrigger />
-          <Separator orientation="vertical" />
+          {/* <div className="block w-0.5 min-h-8 bg-foreground/10" /> */}
           <p className="text-sm font-semibold">{pathLabel}</p>
         </div>
         <div className="flex items-center gap-2">
