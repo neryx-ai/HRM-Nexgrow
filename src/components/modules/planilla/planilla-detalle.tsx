@@ -10,7 +10,6 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
-  FileText,
   Download,
   FileSpreadsheet,
 } from "lucide-react";
@@ -54,6 +53,15 @@ import {
   exportarPlanillaPDF,
 } from "@/actions/exportar.actions";
 
+interface DesgloseLegalItem {
+  nombre: string;
+  clave: string;
+  tipo: "porcentaje" | "monto_fijo";
+  base: "total_ingresos" | "gravable_renta";
+  valor: string;
+  monto: string;
+}
+
 interface DetalleItem {
   detalle: {
     id: string;
@@ -63,10 +71,8 @@ interface DetalleItem {
     horasOrdinarias: string;
     horasExtra: string;
     montoHorasExtra: string;
-    ccssEmpleado: string;
-    insEmpleado: string;
+    desgloseDeduccionesLegales: DesgloseLegalItem[] | null;
     impuestoRenta: string;
-    bancoPopular: string;
     totalDeduccionesLegales: string;
     totalDeduccionesAdicionales: string;
     totalIngresosExtras: string;
@@ -331,8 +337,8 @@ export function PlanillaDetalle({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col items-start gap-4 justify-between">
+        <div className="w-full flex items-center justify-between gap-4">
           <Button
             variant="ghost"
             size="sm"
@@ -350,41 +356,45 @@ export function PlanillaDetalle({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={
-              p.estado === "procesada"
-                ? "default"
-                : p.estado === "anulada"
-                  ? "destructive"
-                  : "outline"
-            }
-          >
-            {p.estado === "borrador"
-              ? "Borrador"
-              : p.estado === "procesada"
-                ? "Procesada"
-                : "Anulada"}
-          </Badge>
-          {isBorrador && (
-            <Button
-              onClick={() => {
-                setFormData((f) => ({ ...f, fechaPago: "" }));
-                setModalMode("confirmar");
-              }}
+        <div className="w-full flex flex-col md:flex-row items-end md:items-center justify-end gap-4">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant={
+                p.estado === "procesada"
+                  ? "default"
+                  : p.estado === "anulada"
+                    ? "destructive"
+                    : "outline"
+              }
             >
-              <Send className="h-4 w-4 mr-2" />
-              Confirmar planilla
+              {p.estado === "borrador"
+                ? "Borrador"
+                : p.estado === "procesada"
+                  ? "Procesada"
+                  : "Anulada"}
+            </Badge>
+            {isBorrador && (
+              <Button
+                onClick={() => {
+                  setFormData((f) => ({ ...f, fechaPago: "" }));
+                  setModalMode("confirmar");
+                }}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Confirmar planilla
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleExportExcel} disabled={loading}>
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel
             </Button>
-          )}
-          <Button variant="outline" onClick={handleExportExcel} disabled={loading}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel
-          </Button>
-          <Button variant="outline" onClick={handleExportPDF} disabled={loading}>
-            <Download className="h-4 w-4 mr-2" />
-            PDF
-          </Button>
+            <Button variant="outline" onClick={handleExportPDF} disabled={loading}>
+              <Download className="h-4 w-4 mr-2" />
+              PDF
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -516,9 +526,18 @@ export function PlanillaDetalle({
                         <span>
                           ¢{fmtCRC(d.detalle.totalDeduccionesLegales)}
                         </span>
+                        {(d.detalle.desgloseDeduccionesLegales ?? []).map(
+                          (x) => (
+                            <p
+                              key={x.clave}
+                              className="text-xs text-muted-foreground"
+                            >
+                              {x.nombre}: ¢{fmtCRC(x.monto)}
+                            </p>
+                          ),
+                        )}
                         <p className="text-xs text-muted-foreground">
-                          CCSS ¢{fmtCRC(d.detalle.ccssEmpleado)} · Renta ¢
-                          {fmtCRC(d.detalle.impuestoRenta)}
+                          Renta: ¢{fmtCRC(d.detalle.impuestoRenta)}
                         </p>
                       </div>
                     </TableCell>

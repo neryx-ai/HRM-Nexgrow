@@ -31,8 +31,8 @@ export default async function PayrollPage() {
   };
 
   return (
-    <div className="p-2">
-      <h1 className="text-2xl font-bold mb-6">Planilla</h1>
+    <div className="p-2 md:pr-4">
+      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Planilla</h1> */}
       <PlanillaManager planillas={data.planillas || []} />
     </div>
   );

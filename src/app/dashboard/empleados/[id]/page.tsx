@@ -6,6 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ToggleEmpleadoEstadoButton } from "./toggle-estado-button";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 interface Empleado {
   id: string;
@@ -62,6 +65,15 @@ export default async function EmpleadoDetailPage({
 }) {
   const { id } = await params;
   const result = await getEmpleadoById(id);
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const role = (session?.user as { role?: string })?.role || "empleado";
 
   if (!result.success || !result.data) {
     return (
@@ -72,7 +84,7 @@ export default async function EmpleadoDetailPage({
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold">Empleado no encontrado</h1>
+          <h1 className="text-2xl font-bold font-heading">Empleado no encontrado</h1>
         </div>
         <p className="text-muted-foreground">
           No se pudo cargar la información del empleado.
@@ -97,7 +109,7 @@ export default async function EmpleadoDetailPage({
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-2xl font-bold font-heading">
               {empleado.nombre} {empleado.apellidos}
             </h1>
             <p className="text-muted-foreground text-sm">
@@ -105,13 +117,24 @@ export default async function EmpleadoDetailPage({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        {
+          (role !== "empleado") && (
+            <div className="flex items-center gap-2">
+              <ToggleEmpleadoEstadoButton
+                empleadoId={empleado.id}
+                estado={empleado.estado}
+                nombre={`${empleado.nombre} ${empleado.apellidos}`}
+              />
+            </div>
+          )
+        }
+        {/* <div className="flex items-center gap-2">
           <ToggleEmpleadoEstadoButton
             empleadoId={empleado.id}
             estado={empleado.estado}
             nombre={`${empleado.nombre} ${empleado.apellidos}`}
           />
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -234,7 +257,7 @@ export default async function EmpleadoDetailPage({
               Acceso al Sistema
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 flex">
             <div>
               <p className="text-sm text-muted-foreground mb-1">PIN</p>
               {empleado.pin ? (
@@ -245,7 +268,7 @@ export default async function EmpleadoDetailPage({
                 <p className="text-muted-foreground">—</p>
               )}
             </div>
-            <Separator />
+            <Separator orientation="vertical" className="mx-4" />
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Estado</p>
@@ -256,12 +279,12 @@ export default async function EmpleadoDetailPage({
                   {empleado.estado}
                 </Badge>
               </div>
-              <div className="w-full col-span-2">
+              {/* <div className="w-full col-span-2">
                 <p className="text-sm text-muted-foreground">ID de usuario</p>
                 <p className="font-mono text-sm w-full ">
                   {empleado.userId ?? "—"}
                 </p>
-              </div>
+              </div> */}
             </div>
           </CardContent>
         </Card>

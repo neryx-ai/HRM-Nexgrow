@@ -91,10 +91,8 @@ export async function exportarPlanillaExcel(
       "Horas Extra",
       "Monto H.E.",
       "Ingresos Extra",
-      "CCSS",
-      "INS",
+      "Ded. Legales (detalle)",
       "Imp. Renta",
-      "Banco Popular",
       "Total Ded. Legales",
       "Ded. Adicionales",
       "Salario Neto",
@@ -107,6 +105,16 @@ export async function exportarPlanillaExcel(
       const ingEmp = ingresos
         .filter((i) => i.detallePlanillaId === d.detalle.id)
         .reduce((s, i) => s + parseFloat(i.monto), 0);
+      const desglose = d.detalle.desgloseDeduccionesLegales ?? [];
+      const desgloseTexto =
+        desglose.length === 0
+          ? "—"
+          : desglose
+              .map(
+                (x) =>
+                  `${x.nombre} ${x.tipo === "porcentaje" ? `(${(parseFloat(x.valor) * 100).toFixed(2)}%)` : `(¢${parseFloat(x.valor).toFixed(2)})`}=¢${parseFloat(x.monto).toFixed(2)}`,
+              )
+              .join(" | ");
 
       return [
         `${d.empleadoNombre} ${d.empleadoApellidos}`,
@@ -118,10 +126,8 @@ export async function exportarPlanillaExcel(
         parseFloat(d.detalle.horasExtra),
         parseFloat(d.detalle.montoHorasExtra),
         ingEmp,
-        parseFloat(d.detalle.ccssEmpleado),
-        parseFloat(d.detalle.insEmpleado),
+        desgloseTexto,
         parseFloat(d.detalle.impuestoRenta),
-        parseFloat(d.detalle.bancoPopular),
         parseFloat(d.detalle.totalDeduccionesLegales),
         dedEmp,
         parseFloat(d.detalle.salarioNeto),
@@ -138,9 +144,7 @@ export async function exportarPlanillaExcel(
       0,
       parseFloat(planillaData.totalHorasExtra),
       0,
-      0,
-      0,
-      0,
+      "",
       0,
       parseFloat(planillaData.totalDeduccionesLegales),
       parseFloat(planillaData.totalDeduccionesAdicionales),

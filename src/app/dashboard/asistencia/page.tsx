@@ -87,8 +87,8 @@ export default async function AsistenciaPage() {
   const empleadosData = (empleadosResult?.data as EmpleadosResponse)?.empleados || [];
 
   return (
-    <div className="p-2">
-      <h1 className="text-2xl font-bold mb-6">Asistencia</h1>
+    <div className="p-2 md:pr-4">
+      <h1 className="text-2xl font-bold mb-6 font-heading">Asistencia</h1>
       <AsistenciaManager
         historialInicial={historialData}
         sucursales={sucursalesData}

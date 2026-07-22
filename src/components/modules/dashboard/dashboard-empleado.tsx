@@ -146,10 +146,10 @@ export function DashboardEmpleado() {
 
   return (
     <div className="space-y-6 p-2 pr-4 pb-10">
-      <div className="flex items-start justify-between">
+      <div className="flex items-center justify-between pt-4">
         <div>
-          <h2 className="text-2xl font-bold">{nombreCompleto}</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-3xl font-bold font-heading">Bienvenido, {nombreCompleto}</h2>
+          <p className="text-muted-foreground text-sm">
             {emp.puestoNombre || "Sin puesto"} —{" "}
             {emp.sucursalNombre || "Sin sucursal"}
           </p>

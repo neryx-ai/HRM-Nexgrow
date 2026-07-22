@@ -286,10 +286,9 @@ export async function getReportePlanilla(
         horasOrdinarias: detallePlanilla.horasOrdinarias,
         horasExtra: detallePlanilla.horasExtra,
         montoHorasExtra: detallePlanilla.montoHorasExtra,
-        ccssEmpleado: detallePlanilla.ccssEmpleado,
-        insEmpleado: detallePlanilla.insEmpleado,
+        desgloseDeduccionesLegales:
+          detallePlanilla.desgloseDeduccionesLegales,
         impuestoRenta: detallePlanilla.impuestoRenta,
-        bancoPopular: detallePlanilla.bancoPopular,
         totalDeduccionesLegales: detallePlanilla.totalDeduccionesLegales,
         totalDeduccionesAdicionales:
           detallePlanilla.totalDeduccionesAdicionales,

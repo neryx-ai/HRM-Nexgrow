@@ -55,8 +55,8 @@ export default async function VacacionesPage() {
   };
 
   return (
-    <div className="p-2">
-      <h1 className="text-2xl font-bold mb-6">Vacaciones</h1>
+    <div className="p-2 pr-4">
+      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Vacaciones</h1> */}
       <VacacionesManager
         solicitudes={data.solicitudes || []}
         saldos={data.saldos || []}

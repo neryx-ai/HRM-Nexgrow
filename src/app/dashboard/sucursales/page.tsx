@@ -19,7 +19,7 @@ export default async function SucursalesPage() {
   if (!result.success || !result.data) {
     return (
       <div className="p-2">
-        <h1>Sucursales</h1>
+        <h1 className="font-heading">Sucursales</h1>
         <p className="text-muted-foreground">
           No se pudo cargar la información de sucursales.
         </p>
@@ -31,8 +31,8 @@ export default async function SucursalesPage() {
   const sucursales = data.sucursales;
 
   return (
-    <div className="p-2">
-      <h1 className="text-2xl font-bold mb-6">Sucursales</h1>
+    <div className="p-2 md:pr-4">
+      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Sucursales</h1> */}
       <SucursalesManager sucursales={sucursales} />
     </div>
   );

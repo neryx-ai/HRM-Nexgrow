@@ -10,6 +10,7 @@ import {
   SidebarHeader,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -28,12 +29,15 @@ import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
 import LogoImage from "@/app/assets/logo-jivis.png";
 import { Session } from "@/types/sessions";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 function MySidebar({ 
   session 
 }: { 
   session: Session
 }) {
+
+  const { open } = useSidebar();
 
   React.useEffect(() => {
     void session?.user.role;
@@ -97,7 +101,7 @@ function MySidebar({
   });
 
   return (
-    <Sidebar variant="floating">
+    <Sidebar variant="floating" collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center justify-center py-3">
           <figure className="rounded-sm border border-foreground/16 overflow-hidden">
@@ -110,133 +114,154 @@ function MySidebar({
         <SidebarGroup className="space-y-2">
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarMenuItem>
-            <Link href="/dashboard">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-base cursor-pointer"
-              >
-                <LayoutDashboard className="size-5" />
-                <span>Dashboard</span>
-              </Button>
-            </Link>
+            <TooltipShow open={open} content="Dashboard">
+                <Link href="/dashboard">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <LayoutDashboard className="size-5" />
+                    {open && <span>Dashboard</span>}
+                  </Button>
+                </Link>
+            </TooltipShow>
           </SidebarMenuItem>
 
           {accessEmpleados && (
             <SidebarMenuItem>
-              <Link href={`/dashboard/empleados`}>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <BookUser className="size-5" />
-                  <span>
-                    {session?.user.role === "empleado"
-                      ? "Perfil empleado"
-                      : "Empleados"}
-                  </span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Empleados">
+                <Link href="/dashboard/empleados">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <BookUser className="size-5" />
+                    {open && <span>Empleados</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessBranches && (
             <SidebarMenuItem>
-              <Link href="/dashboard/sucursales">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <Building2 className="size-5" />
-                  <span>Sucursales</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Sucursales">
+                <Link href="/dashboard/sucursales">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <Building2 className="size-5" />
+                    {open && <span>Sucursales</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessBranches && (
             <SidebarMenuItem>
-              <Link href="/dashboard/puestos">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <Briefcase className="size-5" />
-                  <span>Puestos</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Puestos">
+                <Link href="/dashboard/puestos">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <Briefcase className="size-5" />
+                    {open && <span>Puestos</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessPayrolls && (
             <SidebarMenuItem>
-              <Link href="/dashboard/payroll">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <Wallet className="size-5" />
-                  <span>Planilla</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Nóminas">
+                <Link href="/dashboard/payroll">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <Wallet className="size-5" />
+                    {open && <span>Planilla</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessVacations && (
             <SidebarMenuItem>
-              <Link href="/dashboard/vacations">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <TreePalm className="size-5" />
-                  <span>Vacaciones</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Vacaciones">
+                <Link href="/dashboard/vacations">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <TreePalm className="size-5" />
+                    {open && <span>Vacaciones</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessAttendance && (
             <SidebarMenuItem>
-              <Link href="/dashboard/asistencia">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <ChartArea className="size-5" />
-                  <span>Asistencia</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Asistencia">
+                <Link href="/dashboard/asistencia">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <ChartArea className="size-5" />
+                    {open && <span>Asistencia</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
 
           {accessReportes && (
             <SidebarMenuItem>
-              <Link href="/dashboard/reportes">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-base cursor-pointer"
-                >
-                  <FileBarChart className="size-5" />
-                  <span>Reportes</span>
-                </Button>
-              </Link>
+              <TooltipShow open={open} content="Reportes">
+                <Link href="/dashboard/reportes">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <FileBarChart className="size-5" />
+                    {open && <span>Reportes</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
             </SidebarMenuItem>
           )}
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         {accessConfiguration && (
-          <SidebarMenuItem>
+          <TooltipShow open={open} content="Configuración">
             <Link href="/dashboard/settings">
               <Button
                 variant="ghost"
-                className="w-full justify-start text-base cursor-pointer"
+                size={open ? "default" : "icon"}
+                className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
               >
                 <Settings className="size-5" />
-                <span>Configuración</span>
+                {open && <span>Configuración</span>}
               </Button>
             </Link>
-          </SidebarMenuItem>
+          </TooltipShow>
         )}
       </SidebarFooter>
     </Sidebar>
@@ -244,3 +269,21 @@ function MySidebar({
 }
 
 export default MySidebar;
+
+const TooltipShow = ({ children, open, content }: { children: React.ReactNode; open: boolean; content: string }) => {
+  
+  if (open) {
+    return children;
+  }
+  
+  return (
+    <Tooltip>
+      <TooltipTrigger className="w-full" asChild>
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        <p>{content}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+};

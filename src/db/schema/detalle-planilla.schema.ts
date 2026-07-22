@@ -5,12 +5,22 @@ import {
   text,
   numeric,
   timestamp,
+  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 import { planilla } from "./planilla.schema";
 import { empleado } from "./empleado.schema";
 import { deduccionAdicional } from "./deduccion-adicional.schema";
 import { ingresoExtra } from "./ingreso-extra.schema";
+
+export interface DeduccionLegalDesglose {
+  nombre: string;
+  clave: string;
+  tipo: "porcentaje" | "monto_fijo";
+  base: "total_ingresos" | "gravable_renta";
+  valor: string;
+  monto: string;
+}
 
 export const detallePlanilla = pgTable(
   "detalle_planilla",
@@ -36,18 +46,12 @@ export const detallePlanilla = pgTable(
       .notNull()
       .default("0"),
 
-    ccssEmpleado: numeric("ccss_empleado", { precision: 12, scale: 2 })
-      .notNull()
-      .default("0"),
-    insEmpleado: numeric("ins_empleado", { precision: 12, scale: 2 })
-      .notNull()
-      .default("0"),
     impuestoRenta: numeric("impuesto_renta", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),
-    bancoPopular: numeric("banco_popular", { precision: 12, scale: 2 })
-      .notNull()
-      .default("0"),
+    desgloseDeduccionesLegales: jsonb(
+      "desglose_deducciones_legales",
+    ).$type<DeduccionLegalDesglose[]>(),
 
     totalDeduccionesLegales: numeric("total_deducciones_legales", {
       precision: 12,

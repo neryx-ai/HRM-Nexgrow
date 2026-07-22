@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Plus, ToggleLeft, ToggleRight, Pencil, X, Check } from "lucide-react";
+import {
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Pencil,
+  Trash2,
+  X,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,7 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createFeriado, updateFeriado, toggleFeriado } from "@/actions/feriados.actions";
+import {
+  createFeriado,
+  updateFeriado,
+  toggleFeriado,
+  eliminarFeriado,
+} from "@/actions/feriados.actions";
 
 interface Feriado {
   id: string;
@@ -106,6 +119,25 @@ export function FeriadosTable({ feriados: initial }: { feriados: Feriado[] }) {
     setEditingId(f.id);
     setForm({ fecha: f.fecha, nombre: f.nombre, tipo: f.tipo });
     setShowForm(true);
+  }
+
+  async function handleDelete(f: Feriado) {
+    const msg = `¿Eliminar el feriado "${f.nombre}" del ${formatDate(f.fecha)}? Si ya hay solicitudes de vacaciones que cruzan esta fecha, el cálculo de días hábiles se recalculará automáticamente.`;
+    if (!window.confirm(msg)) return;
+    setLoading(true);
+    try {
+      const result = await eliminarFeriado(f.id);
+      if (result.success) {
+        toast.success(result.message);
+        setFeriados((prev) => prev.filter((x) => x.id !== f.id));
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error("Error al eliminar feriado");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const formatDate = (d: string) => {
@@ -231,6 +263,16 @@ export function FeriadosTable({ feriados: initial }: { feriados: Feriado[] }) {
                         ) : (
                           <ToggleLeft className="h-4 w-4 text-muted-foreground" />
                         )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(f)}
+                        disabled={loading}
+                        aria-label={`Eliminar ${f.nombre}`}
+                        title="Eliminar"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </TableCell>

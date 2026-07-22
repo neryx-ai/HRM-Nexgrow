@@ -25,7 +25,6 @@ import {
 import {
   calcularPlanillaEmpleado,
   calcularTotalesPlanilla,
-  getDeduccionesConfig,
 } from "@/lib/planilla";
 import { emailService } from "@/lib/email";
 import { revalidatePath } from "next/cache";
@@ -266,10 +265,8 @@ export async function crearPlanilla(
         horasOrdinarias: calculo.horasOrdinarias,
         horasExtra: calculo.horasExtra,
         montoHorasExtra: calculo.montoHorasExtra,
-        ccssEmpleado: calculo.ccssEmpleado,
-        insEmpleado: calculo.insEmpleado,
+        desgloseDeduccionesLegales: calculo.desgloseDeduccionesLegales,
         impuestoRenta: calculo.impuestoRenta,
-        bancoPopular: calculo.bancoPopular,
         totalDeduccionesLegales: calculo.totalDeduccionesLegales,
         totalDeduccionesAdicionales: "0",
         totalIngresosExtras: "0",
@@ -284,10 +281,8 @@ export async function crearPlanilla(
       horasOrdinarias: d.horasOrdinarias,
       horasExtra: d.horasExtra,
       montoHorasExtra: d.montoHorasExtra,
-      ccssEmpleado: d.ccssEmpleado,
-      insEmpleado: d.insEmpleado,
+      desgloseDeduccionesLegales: d.desgloseDeduccionesLegales ?? [],
       impuestoRenta: d.impuestoRenta,
-      bancoPopular: d.bancoPopular,
       totalDeduccionesLegales: d.totalDeduccionesLegales,
       salarioNeto: d.salarioNeto,
     }));
@@ -786,8 +781,6 @@ export async function confirmarPlanilla(
 
 async function enviarColillasEnBackground(planillaId: string): Promise<void> {
   try {
-    const dedConfig = await getDeduccionesConfig();
-
     const detalles = await db
       .select({
         detalle: detallePlanilla,
@@ -841,10 +834,8 @@ async function enviarColillasEnBackground(planillaId: string): Promise<void> {
           concepto: i.concepto,
           monto: i.monto,
         })),
-        ccssEmpleado: d.detalle.ccssEmpleado,
-        insEmpleado: d.detalle.insEmpleado,
+        desgloseDeduccionesLegales: d.detalle.desgloseDeduccionesLegales ?? [],
         impuestoRenta: d.detalle.impuestoRenta,
-        bancoPopular: d.detalle.bancoPopular,
         totalDeduccionesLegales: d.detalle.totalDeduccionesLegales,
         totalDeduccionesAdicionales: d.detalle.totalDeduccionesAdicionales,
         deduccionesAdicionales: deduccionesEmp.map((dd) => ({
@@ -852,7 +843,6 @@ async function enviarColillasEnBackground(planillaId: string): Promise<void> {
           monto: dd.monto,
         })),
         salarioNeto: d.detalle.salarioNeto,
-        dedConfig,
       });
 
       const sent = await emailService.sendEmail({
@@ -887,34 +877,46 @@ function buildColillaPagoHtml(data: {
   montoHorasExtra: string;
   totalIngresosExtras: string;
   ingresosExtras: { concepto: string; monto: string }[];
-  ccssEmpleado: string;
-  insEmpleado: string;
+  desgloseDeduccionesLegales: {
+    nombre: string;
+    clave: string;
+    tipo: "porcentaje" | "monto_fijo";
+    base: "total_ingresos" | "gravable_renta";
+    valor: string;
+    monto: string;
+  }[];
   impuestoRenta: string;
-  bancoPopular: string;
   totalDeduccionesLegales: string;
   totalDeduccionesAdicionales: string;
   deduccionesAdicionales: { concepto: string; monto: string }[];
   salarioNeto: string;
-  dedConfig: Record<string, number>;
 }): string {
   const fmt = (n: string) =>
     parseFloat(n).toLocaleString("es-CR", { minimumFractionDigits: 2 });
 
-  const ccssPct = ((data.dedConfig.ccssEmpleado ?? 0) * 100).toFixed(2);
-  const insPct = ((data.dedConfig.insEmpleado ?? 0) * 100).toFixed(1);
-  const bpPct = ((data.dedConfig.bancoPopular ?? 0) * 100).toFixed(1);
-
   const ingresosExtrasRows = data.ingresosExtras
     .map(
       (i) =>
-        `<tr><td style="padding:4px 8px;color:#78716c;">${i.concepto}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(i.monto)}</td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#78716c;">${escapeHtml(i.concepto)}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(i.monto)}</td></tr>`,
     )
+    .join("");
+
+  const deduccionesLegalesRows = data.desgloseDeduccionesLegales
+    .map((d) => {
+      const tasa =
+        d.tipo === "porcentaje"
+          ? ` (${(parseFloat(d.valor) * 100).toFixed(4).replace(/\.?0+$/, "")}%)`
+          : "";
+      const base =
+        d.base === "gravable_renta" ? " (gravable)" : "";
+      return `<tr><td style="padding:4px 12px;">${escapeHtml(d.nombre)}${tasa}${base}</td><td style="padding:4px 12px;text-align:right;">¢${fmt(d.monto)}</td></tr>`;
+    })
     .join("");
 
   const deduccionesAdicionalesRows = data.deduccionesAdicionales
     .map(
       (d) =>
-        `<tr><td style="padding:4px 8px;color:#78716c;">${d.concepto}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(d.monto)}</td></tr>`,
+        `<tr><td style="padding:4px 8px;color:#78716c;">${escapeHtml(d.concepto)}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(d.monto)}</td></tr>`,
     )
     .join("");
 
@@ -930,13 +932,13 @@ function buildColillaPagoHtml(data: {
 <h1 style="margin:0;color:#fff;font-size:22px;font-weight:600;">Colilla de Pago — Jivis</h1>
 </td></tr>
 <tr><td style="padding:32px 40px;">
-<h2 style="margin:0 0 16px;color:#1c1917;font-size:18px;">${data.nombre}</h2>
+<h2 style="margin:0 0 16px;color:#1c1917;font-size:18px;">${escapeHtml(data.nombre)}</h2>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
 <tr>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Cédula: <strong style="color:#1c1917;">${data.cedula}</strong></td>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Puesto: <strong style="color:#1c1917;">${data.puesto || "—"}</strong></td>
+<td style="padding:4px 0;color:#78716c;font-size:13px;">Cédula: <strong style="color:#1c1917;">${escapeHtml(data.cedula)}</strong></td>
+<td style="padding:4px 0;color:#78716c;font-size:13px;">Puesto: <strong style="color:#1c1917;">${escapeHtml(data.puesto || "—")}</strong></td>
 </tr><tr>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Sucursal: <strong style="color:#1c1917;">${data.sucursal || "—"}</strong></td>
+<td style="padding:4px 0;color:#78716c;font-size:13px;">Sucursal: <strong style="color:#1c1917;">${escapeHtml(data.sucursal || "—")}</strong></td>
 <td style="padding:4px 0;color:#78716c;font-size:13px;">Período: <strong style="color:#1c1917;">${data.periodoInicio} a ${data.periodoFin}</strong></td>
 </tr>
 </table>
@@ -951,10 +953,8 @@ ${ingresosExtrasRows}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e5e4;border-radius:6px;margin-bottom:16px;">
 <tr style="background-color:#f5f5f4;"><td colspan="2" style="padding:8px 12px;font-weight:600;color:#1c1917;font-size:14px;">Deducciones Legales</td></tr>
-<tr><td style="padding:4px 12px;">CCSS (${ccssPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.ccssEmpleado)}</td></tr>
-<tr><td style="padding:4px 12px;">INS (${insPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.insEmpleado)}</td></tr>
-<tr><td style="padding:4px 12px;">Impuesto Renta</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.impuestoRenta)}</td></tr>
-<tr><td style="padding:4px 12px;">Banco Popular (${bpPct}%)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.bancoPopular)}</td></tr>
+${deduccionesLegalesRows || `<tr><td colspan="2" style="padding:8px 12px;color:#a8a29e;">Sin deducciones legales aplicables</td></tr>`}
+<tr><td style="padding:4px 12px;">Impuesto sobre la Renta</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.impuestoRenta)}</td></tr>
 <tr style="border-top:1px solid #e7e5e4;"><td style="padding:8px 12px;font-weight:600;">Total deducciones legales</td><td style="padding:8px 12px;text-align:right;font-weight:600;">¢${fmt(data.totalDeduccionesLegales)}</td></tr>
 </table>
 
@@ -977,6 +977,15 @@ ${data.fechaPago ? `<p style="margin:16px 0 0;color:#78716c;font-size:13px;">Fec
 </td></tr>
 </table>
 </body></html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 export async function anularPlanilla(

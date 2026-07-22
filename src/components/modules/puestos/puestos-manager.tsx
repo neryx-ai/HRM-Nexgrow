@@ -209,7 +209,7 @@ export function PuestosManager({ puestos }: PuestosManagerProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Listado de Puestos</CardTitle>
+        <CardTitle className="font-heading text-2xl pb-1">Listado de Puestos</CardTitle>
         <CardDescription>
           Administra los puestos de trabajo de la organización
         </CardDescription>

@@ -106,3 +106,35 @@ export async function toggleFeriado(id: string): Promise<ActionResponse> {
     return { success: false, message: "Error al cambiar estado", data: {} };
   }
 }
+
+export async function eliminarFeriado(id: string): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+      return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return {
+        success: false,
+        message: "No tenés permisos para eliminar feriados",
+        data: {},
+      };
+    }
+
+    await db.delete(feriado).where(eq(feriado.id, id));
+
+    revalidatePath("/dashboard/settings");
+    revalidatePath("/dashboard/vacations");
+
+    return {
+      success: true,
+      message: "Feriado eliminado exitosamente",
+      data: {},
+    };
+  } catch (error) {
+    logger.error("FERIADO", "Error al eliminar feriado:", error);
+    return { success: false, message: "Error al eliminar feriado", data: {} };
+  }
+}

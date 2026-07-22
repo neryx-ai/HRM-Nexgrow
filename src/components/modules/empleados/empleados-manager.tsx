@@ -324,7 +324,7 @@ export function EmpleadosManager({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Gestión de Empleados</CardTitle>
+          <CardTitle className="font-heading text-2xl pb-1">Gestión de Empleados</CardTitle>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
               <div className="relative w-full sm:max-w-sm">
@@ -333,7 +333,7 @@ export function EmpleadosManager({
                   placeholder="Buscar por nombre, apellidos o cédula..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 placeholder:text-xs"
                 />
               </div>
               <Select value={filterSucursal} onValueChange={setFilterSucursal}>

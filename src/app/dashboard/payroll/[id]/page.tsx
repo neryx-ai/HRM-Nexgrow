@@ -1,6 +1,15 @@
 import { getPlanillaDetalle } from "@/actions/planilla.actions";
 import { PlanillaDetalle } from "@/components/modules/planilla/planilla-detalle";
 
+interface DesgloseLegalItem {
+  nombre: string;
+  clave: string;
+  tipo: "porcentaje" | "monto_fijo";
+  base: "total_ingresos" | "gravable_renta";
+  valor: string;
+  monto: string;
+}
+
 interface DetalleItem {
   detalle: {
     id: string;
@@ -10,10 +19,8 @@ interface DetalleItem {
     horasOrdinarias: string;
     horasExtra: string;
     montoHorasExtra: string;
-    ccssEmpleado: string;
-    insEmpleado: string;
+    desgloseDeduccionesLegales: DesgloseLegalItem[] | null;
     impuestoRenta: string;
-    bancoPopular: string;
     totalDeduccionesLegales: string;
     totalDeduccionesAdicionales: string;
     totalIngresosExtras: string;

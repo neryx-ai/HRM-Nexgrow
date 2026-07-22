@@ -28,11 +28,11 @@ export default async function SettingsPage() {
   const usuarios = (usuariosRes.data as { users: unknown[] })?.users ?? [];
 
   return (
-    <div className="p-2 space-y-6">
-      <div className="flex items-center gap-2">
+    <div className="p-2 space-y-6 md:pr-4">
+      {/* <div className="flex items-center gap-2">
         <Cog className="h-6 w-6" />
-        <h1 className="text-2xl font-bold">Configuración</h1>
-      </div>
+        <h1 className="text-2xl font-bold font-heading">Configuración</h1>
+      </div> */}
       <SettingsTabs
         deducciones={deducciones as never[]}
         feriados={feriados as never[]}

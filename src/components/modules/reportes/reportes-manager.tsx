@@ -230,7 +230,7 @@ export function ReportesManager() {
 
   return (
     <div className="space-y-6">
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex flex-wrap gap-2 overflow-x-auto pb-2">
         {tabs.map((t) => (
           <Button
             key={t.id}

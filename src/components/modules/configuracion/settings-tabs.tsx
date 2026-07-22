@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DeduccionesForm } from "./deducciones-form";
+import { DeduccionesForm, type Deduccion } from "./deducciones-form";
 import { FeriadosTable } from "./feriados-table";
 import { TramosTable } from "./tramos-table";
 import { UsuariosTable } from "./usuarios-table";
@@ -21,14 +21,6 @@ interface Tramo {
   limiteSuperior: string | null;
   porcentaje: string;
   montoExcedente: string;
-  descripcion: string | null;
-  activo: boolean | null;
-}
-
-interface Deduccion {
-  id: string;
-  clave: string;
-  valor: string;
   descripcion: string | null;
   activo: boolean | null;
 }
@@ -68,7 +60,7 @@ export function SettingsTabs({
 
   return (
     <div>
-      <div className="flex gap-1 border-b mb-4" role="tablist" aria-label="Configuración">
+      <div className="flex gap-1 border-b mb-4 pb-1 pt-4" role="tablist" aria-label="Configuración">
         {TABS.map((tab) => (
           <Button
             key={tab.id}

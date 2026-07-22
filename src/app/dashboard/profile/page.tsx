@@ -12,7 +12,7 @@ export default async function ProfilePage() {
   if (!result.success || !result.data) {
     return (
       <div className="p-2">
-        <h1>Perfil</h1>
+        <h1 className="font-heading">Perfil</h1>
         <p className="text-muted-foreground">
           No se pudo cargar la información del perfil.
         </p>
@@ -25,7 +25,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="p-2">
-      <h1 className="text-2xl font-bold mb-6">Datos de usuario</h1>
+      <h1 className="text-2xl font-bold mb-6 font-heading">Datos de usuario</h1>
       <ProfileForm user={user} />
     </div>
   );

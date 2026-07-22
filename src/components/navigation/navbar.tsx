@@ -52,7 +52,7 @@ function MyNavbar() {
     router.push("/login");
   };
   return (
-    <div className="w-full relative flex items-center p-2 pr-4">
+    <div className="w-full relative flex items-center p-2 md:pr-4">
       <div className="flex items-center gap-2 w-full bg-sidebar p-2 border border-foreground/5 shadow-sm rounded">
         <div className="relative flex items-center gap-2 w-full">
           <MySidebarTrigger />

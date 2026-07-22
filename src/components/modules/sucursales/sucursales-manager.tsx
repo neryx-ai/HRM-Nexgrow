@@ -182,7 +182,7 @@ export function SucursalesManager({ sucursales }: SucursalesManagerProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>Gestión de Sucursales</CardTitle>
+          <CardTitle className="font-heading text-2xl pb-1">Gestión de Sucursales</CardTitle>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

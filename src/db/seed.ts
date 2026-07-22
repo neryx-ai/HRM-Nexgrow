@@ -182,13 +182,53 @@ async function seedDeducciones() {
   }
 
   await db.insert(configuracionDeduccion).values([
-    { clave: "ccssEmpleado", valor: "0.0917", descripcion: "CCSS empleado (9.17%)" },
-    { clave: "insEmpleado", valor: "0.01", descripcion: "INS empleado (1%)" },
-    { clave: "bancoPopular", valor: "0.005", descripcion: "Banco Popular (0.5%)" },
-    { clave: "factorHorasExtra", valor: "1.5", descripcion: "Factor multiplicador horas extra" },
+    {
+      nombre: "CCSS Empleado",
+      clave: "ccssEmpleado",
+      tipo: "porcentaje",
+      base: "total_ingresos",
+      valor: "0.0917",
+      descripcion: "CCSS empleado (9.17%)",
+      categoria: "deduccion_legal",
+      orden: 10,
+      activo: true,
+    },
+    {
+      nombre: "INS Empleado",
+      clave: "insEmpleado",
+      tipo: "porcentaje",
+      base: "total_ingresos",
+      valor: "0.01",
+      descripcion: "INS empleado (1%)",
+      categoria: "deduccion_legal",
+      orden: 20,
+      activo: true,
+    },
+    {
+      nombre: "Banco Popular",
+      clave: "bancoPopular",
+      tipo: "porcentaje",
+      base: "total_ingresos",
+      valor: "0.005",
+      descripcion: "Banco Popular (0.5%)",
+      categoria: "deduccion_legal",
+      orden: 30,
+      activo: true,
+    },
+    {
+      nombre: "Factor Horas Extra",
+      clave: "factorHorasExtra",
+      tipo: "factor",
+      valor: "1.5",
+      descripcion:
+        "Factor multiplicador de horas extra (1.5 = 150%, 2 = 200%, etc.)",
+      categoria: "deduccion_legal",
+      orden: 0,
+      activo: true,
+    },
   ]);
 
-  logger.info("SEED", "4 deducciones por defecto creadas");
+  logger.info("SEED", "Configuración inicial de deducciones creada");
 }
 
 async function seed() {

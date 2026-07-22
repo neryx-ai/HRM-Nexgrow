@@ -4,42 +4,90 @@ import { configuracionDeduccion } from "@/db/schema/configuracion-deduccion.sche
 import { resumenAsistenciaDiaria } from "@/db/schema/resumen-asistencia-diaria.schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import type { DeduccionLegalDesglose } from "@/db/schema/detalle-planilla.schema";
 
-let cachedDeducciones: Record<string, number> | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 60_000;
+export const FACTOR_HORAS_EXTRA_DEFAULT = 1.5;
+export const CACHE_TTL_MS = 60_000;
 
-export async function getDeduccionesConfig(): Promise<Record<string, number>> {
-  const now = Date.now();
-  if (cachedDeducciones && now - cacheTimestamp < CACHE_TTL) {
-    return cachedDeducciones;
-  }
+export type TipoDeduccion = "porcentaje" | "monto_fijo" | "factor";
+export type TipoDeduccionLegal = Exclude<TipoDeduccion, "factor">;
+export type BaseDeduccion = "total_ingresos" | "gravable_renta";
 
-  const rows = await db.select({ clave: configuracionDeduccion.clave, valor: configuracionDeduccion.valor }).from(configuracionDeduccion).where(eq(configuracionDeduccion.activo, true));
-
-  const requiredKeys = ["ccssEmpleado", "insEmpleado", "bancoPopular", "factorHorasExtra"];
-  const result: Record<string, number> = {};
-
-  for (const key of requiredKeys) {
-    const row = rows.find((r) => r.clave === key);
-    if (!row) {
-      throw new Error(`Configuración faltante: "${key}" no encontrada en configuracion_deduccion. Ejecutá "pnpm seed" o agregala manualmente en Configuración > Deducciones.`);
-    }
-    const parsed = parseFloat(row.valor);
-    if (isNaN(parsed)) {
-      throw new Error(`Configuración inválida: "${key}" tiene valor "${row.valor}" que no es numérico. Corregilo en Configuración > Deducciones.`);
-    }
-    result[key] = parsed;
-  }
-
-  cachedDeducciones = result;
-  cacheTimestamp = now;
-  return result;
+export interface ConfigDeduccionActiva {
+  id: string;
+  nombre: string;
+  clave: string;
+  tipo: TipoDeduccionLegal;
+  base: BaseDeduccion;
+  valor: string;
+  descripcion: string | null;
+  orden: number;
+  activo: boolean | null;
 }
 
+export interface ConfigAplicables {
+  legales: ConfigDeduccionActiva[];
+  parametros: { factorHorasExtra: number };
+}
+
+let cached: ConfigAplicables | null = null;
+let cacheTimestamp = 0;
+
 export function clearDeduccionesCache(): void {
-  cachedDeducciones = null;
+  cached = null;
   cacheTimestamp = 0;
+}
+
+export function generarClave(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+}
+
+export async function getDeduccionesAplicables(): Promise<ConfigAplicables> {
+  const now = Date.now();
+  if (cached && now - cacheTimestamp < CACHE_TTL_MS) {
+    return cached;
+  }
+
+  const rows = await db
+    .select()
+    .from(configuracionDeduccion)
+    .where(eq(configuracionDeduccion.activo, true))
+    .orderBy(configuracionDeduccion.orden);
+
+  const legales: ConfigDeduccionActiva[] = [];
+  let factorHorasExtra = FACTOR_HORAS_EXTRA_DEFAULT;
+
+  for (const r of rows) {
+    if (r.tipo === "factor" && r.clave === "factorHorasExtra") {
+      const v = parseFloat(r.valor);
+      if (!Number.isNaN(v) && v > 0) factorHorasExtra = v;
+      continue;
+    }
+    if (r.tipo !== "porcentaje" && r.tipo !== "monto_fijo") continue;
+    if (!r.base) continue;
+    const base = r.base as BaseDeduccion;
+    legales.push({
+      id: r.id,
+      nombre: r.nombre,
+      clave: r.clave,
+      tipo: r.tipo,
+      base,
+      valor: r.valor,
+      descripcion: r.descripcion,
+      orden: r.orden,
+      activo: r.activo,
+    });
+  }
+
+  cached = { legales, parametros: { factorHorasExtra } };
+  cacheTimestamp = now;
+  return cached;
 }
 
 interface DatosEmpleado {
@@ -61,10 +109,8 @@ export interface ResultadoCalculo {
   horasOrdinarias: string;
   horasExtra: string;
   montoHorasExtra: string;
-  ccssEmpleado: string;
-  insEmpleado: string;
+  desgloseDeduccionesLegales: DeduccionLegalDesglose[];
   impuestoRenta: string;
-  bancoPopular: string;
   totalDeduccionesLegales: string;
   salarioNeto: string;
 }
@@ -153,9 +199,9 @@ export async function calcularPlanillaEmpleado(
   ingresosExtras: number = 0,
   deduccionesAdicionales: number = 0,
 ): Promise<ResultadoCalculo> {
-  const deducciones = await getDeduccionesConfig();
+  const { legales, parametros } = await getDeduccionesAplicables();
+  const { factorHorasExtra } = parametros;
   const salarioBase = parseFloat(empleado.salarioBase);
-  const { factorHorasExtra, ccssEmpleado: ccssTasa, insEmpleado: insTasa, bancoPopular: bpTasa } = deducciones;
 
   let salarioBruto: number;
   if (tipo === "quincenal") {
@@ -164,44 +210,85 @@ export async function calcularPlanillaEmpleado(
     salarioBruto = salarioBase;
   }
 
-  const { horasOrdinarias, horasExtra } = await getHorasPeriodo(empleado.id, fechaInicio, fechaFin);
+  const { horasOrdinarias, horasExtra } = await getHorasPeriodo(
+    empleado.id,
+    fechaInicio,
+    fechaFin,
+  );
 
-  const valorHoraOrdinaria = round2(salarioBase / 30 / empleado.horasJornada);
+  const valorHoraOrdinaria =
+    horasJornadaSafe(empleado.horasJornada) > 0
+      ? round2(salarioBase / 30 / empleado.horasJornada)
+      : 0;
   const valorHoraExtra = round2(valorHoraOrdinaria * factorHorasExtra);
   const montoHorasExtra = round2(horasExtra * valorHoraExtra);
 
   const totalIngresos = round2(salarioBruto + montoHorasExtra + ingresosExtras);
 
-  const ccssEmpleado = round2(totalIngresos * ccssTasa);
-  const insEmpleado = round2(totalIngresos * insTasa);
-  const bancoPopular = round2(totalIngresos * bpTasa);
+  const desglose: DeduccionLegalDesglose[] = [];
+  let totalPreRenta = 0;
 
-  const salarioGravableRenta = round2(totalIngresos - ccssEmpleado);
+  for (const d of legales.filter((x) => x.base === "total_ingresos")) {
+    const v = parseFloat(d.valor);
+    const monto =
+      d.tipo === "porcentaje"
+        ? round2(totalIngresos * v)
+        : round2(v);
+    desglose.push({
+      nombre: d.nombre,
+      clave: d.clave,
+      tipo: d.tipo,
+      base: "total_ingresos",
+      valor: d.valor,
+      monto: formatCurrency(monto),
+    });
+    totalPreRenta += monto;
+  }
+
+  const gravableRenta = round2(totalIngresos - totalPreRenta);
+
+  for (const d of legales.filter((x) => x.base === "gravable_renta")) {
+    const v = parseFloat(d.valor);
+    const monto =
+      d.tipo === "porcentaje" ? round2(gravableRenta * v) : round2(v);
+    desglose.push({
+      nombre: d.nombre,
+      clave: d.clave,
+      tipo: d.tipo,
+      base: "gravable_renta",
+      valor: d.valor,
+      monto: formatCurrency(monto),
+    });
+  }
+
   const tramos = await getTramosRentaActivos();
-  const impuestoRenta = calcularImpuestoRenta(salarioGravableRenta, tramos);
+  const impuestoRenta = calcularImpuestoRenta(gravableRenta, tramos);
 
-  const totalDeduccionesLegales = round2(
-    ccssEmpleado + insEmpleado + impuestoRenta + bancoPopular,
-  );
+  const totalDeduccionesLegales = round2(totalPreRenta + impuestoRenta);
 
   const salarioNeto = round2(
     totalIngresos - totalDeduccionesLegales - deduccionesAdicionales,
   );
 
-  logger.info("PLANILLA_CALC", `Empleado ${empleado.id}: bruto=${salarioBruto}, neto=${salarioNeto}`);
+  logger.info(
+    "PLANILLA_CALC",
+    `Empleado ${empleado.id}: bruto=${salarioBruto}, neto=${salarioNeto}`,
+  );
 
   return {
     salarioBruto: formatCurrency(salarioBruto),
     horasOrdinarias: formatCurrency(horasOrdinarias),
     horasExtra: formatCurrency(horasExtra),
     montoHorasExtra: formatCurrency(montoHorasExtra),
-    ccssEmpleado: formatCurrency(ccssEmpleado),
-    insEmpleado: formatCurrency(insEmpleado),
+    desgloseDeduccionesLegales: desglose,
     impuestoRenta: formatCurrency(impuestoRenta),
-    bancoPopular: formatCurrency(bancoPopular),
     totalDeduccionesLegales: formatCurrency(totalDeduccionesLegales),
     salarioNeto: formatCurrency(salarioNeto),
   };
+}
+
+function horasJornadaSafe(n: number): number {
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 export function calcularTotalesPlanilla(

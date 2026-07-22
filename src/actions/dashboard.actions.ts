@@ -107,7 +107,7 @@ export async function getDashboardAdminRRHH(): Promise<ActionResponse> {
       })
       .from(planilla)
       .orderBy(desc(planilla.createdAt))
-      .limit(5);
+      .limit(3);
 
     const [solicitudesVacacionPendientes] = await db
       .select({ count: count() })

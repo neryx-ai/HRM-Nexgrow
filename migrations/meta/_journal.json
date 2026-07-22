@@ -50,6 +50,13 @@
       "when": 1777924798950,
       "tag": "0006_overconfident_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784681641844,
+      "tag": "0008_factor_horas_extra_configurable",
+      "breakpoints": true
     }
   ]
 }

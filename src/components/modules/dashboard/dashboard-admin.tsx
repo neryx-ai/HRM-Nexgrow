@@ -44,6 +44,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { Session } from "@/types/sessions";
 
 const COLORS = [
   "hsl(220, 70%, 55%)",
@@ -70,7 +71,7 @@ const estadoVariant: Record<
   anulada: "destructive",
 };
 
-export function DashboardAdmin() {
+export function DashboardAdmin({ session }: { session: Session }) {
   const router = useRouter();
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -176,18 +177,22 @@ export function DashboardAdmin() {
 
   return (
     <div className="space-y-6 p-2 pr-4 pb-10">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <h1 className="font-heading text-2xl font-bold mt-4">Bienvenido, {session?.user.name}</h1>
+        <p className="text-muted-foreground text-sm">Panel de administración</p>
+      </div>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => (
-          <Card key={card.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardDescription className="text-sm font-medium">
+          <Card key={card.title} className="p-4 relative">
+            <CardHeader className="flex flex-row items-center justify-between p-0">
+              <CardDescription className="text-sm font-medium max-w-[80%]">
                 {card.title}
               </CardDescription>
-              <card.icon className={`size-5 ${card.color}`} />
+              <card.icon className={`size-8 ${card.color} opacity-40 absolute bottom-2 right-2`} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{card.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
+            <CardContent className="p-0">
+              <div className="text-3xl font-bold font-heading">{card.value}</div>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[80%]">
                 {card.description}
               </p>
             </CardContent>
@@ -196,38 +201,73 @@ export function DashboardAdmin() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
+        <Card className="p-4">
+          <CardHeader className="p-0">
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="size-5" />
               Empleados por sucursal
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {empleadosPorSucursal.length === 0 ? (
               <p className="text-muted-foreground text-sm text-center py-8">
                 No hay datos disponibles
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={empleadosPorSucursal}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <BarChart
+                  data={empleadosPorSucursal}
+                  margin={{ top: 20, right: 24, left: 0, bottom: 8 }}
+                  barCategoryGap="22%"
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    vertical={false}
+                    className="stroke-border"
+                  />
                   <XAxis
                     dataKey="sucursalNombre"
                     fontSize={12}
                     tickLine={false}
+                    axisLine={false}
+                    className="fill-muted-foreground"
                   />
-                  <YAxis fontSize={12} tickLine={false} allowDecimals={false} />
-                  <Tooltip />
+                  <YAxis
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    className="fill-muted-foreground"
+                  />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--muted))", fillOpacity: 0.4 }}
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: "8px",
+                      color: "hsl(var(--popover-foreground))",
+                      fontSize: "12px",
+                      boxShadow:
+                        "0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04)",
+                    }}
+                  />
                   <Bar
                     dataKey="total"
                     name="Empleados"
-                    radius={[4, 4, 0, 0]}
+                    radius={[6, 6, 0, 0]}
+                    fillOpacity={0.85}
+                    stroke="hsl(var(--background))"
+                    strokeWidth={2}
+                    animationDuration={900}
+                    animationEasing="ease-out"
                   >
                     {empleadosPorSucursal.map((_, idx) => (
                       <Cell
                         key={`cell-${idx}`}
                         fill={COLORS[idx % COLORS.length]}
+                        stroke={COLORS[idx % COLORS.length]}
+                        strokeWidth={2}
+                        fillOpacity={0.85}
                       />
                     ))}
                   </Bar>
@@ -238,7 +278,7 @@ export function DashboardAdmin() {
         </Card>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="px-4">
             <CardTitle className="flex items-center gap-2">
               <CalendarCheck className="size-5" />
               Asistencia hoy
@@ -278,7 +318,7 @@ export function DashboardAdmin() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between px-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               <FileText className="size-5" />
@@ -293,7 +333,7 @@ export function DashboardAdmin() {
             </Link>
           </Button>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-2">
           <Table>
             <TableHeader>
               <TableRow>

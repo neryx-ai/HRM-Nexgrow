@@ -58,9 +58,9 @@ import {
   solicitarVacacion,
   aprobarRechazarVacacion,
   crearFeriado,
-  eliminarFeriado,
   cancelarSolicitudVacacion,
 } from "@/actions/vacacion.actions";
+import { eliminarFeriado } from "@/actions/feriados.actions";
 import {
   SolicitarVacacionSchema,
   CrearFeriadoSchema,
@@ -294,43 +294,43 @@ export function VacacionesManager({
 
   return (
     <>
-      {esEmpleado && saldoActual && (
+      {esEmpleado && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
                   <TreePalm className="size-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Disponibles</p>
-                  <p className="text-2xl font-bold">{saldoActual.diasDisponibles}</p>
+                  <p className="text-2xl font-bold">{saldoActual?.diasDisponibles || "0"}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                   <Clock className="size-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold">{saldoActual.diasPendientes}</p>
+                  <p className="text-2xl font-bold">{saldoActual?.diasPendientes || "0"}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
                   <CalendarDays className="size-5 text-gray-600 dark:text-gray-400" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Usados</p>
-                  <p className="text-2xl font-bold">{saldoActual.diasUsados}</p>
+                  <p className="text-2xl font-bold">{saldoActual?.diasUsados || "0"}</p>
                 </div>
               </div>
             </CardContent>
@@ -344,16 +344,16 @@ export function VacacionesManager({
         </p>
       )}
 
-      <div className="flex items-center gap-2 mb-4">
-        <Button
-          variant={activeTab === "solicitudes" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setActiveTab("solicitudes")}
-        >
-          <CalendarDays className="size-4" />
-          Solicitudes
-        </Button>
-        {!esEmpleado && (
+      {!esEmpleado && (
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant={activeTab === "solicitudes" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("solicitudes")}
+          >
+            <CalendarDays className="size-4" />
+            Solicitudes
+          </Button>
           <Button
             variant={activeTab === "feriados" ? "default" : "outline"}
             size="sm"
@@ -362,8 +362,8 @@ export function VacacionesManager({
             <CalendarOff className="size-4" />
             Feriados
           </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       {activeTab === "solicitudes" && (
         <Card>
@@ -371,7 +371,7 @@ export function VacacionesManager({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-45">
                     <SelectValue placeholder="Filtrar estado" />
                   </SelectTrigger>
                   <SelectContent>
@@ -429,7 +429,7 @@ export function VacacionesManager({
                       <TableCell>
                         <EstadoBadge estado={item.solicitud.estado} />
                       </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
+                      <TableCell className="max-w-50 truncate">
                         {item.solicitud.nota || "—"}
                       </TableCell>
                       {!esEmpleado && (

@@ -80,7 +80,7 @@ export default async function EmpleadosPage() {
   if (!empleadosRes.success || !empleadosRes.data) {
     return (
       <div className="p-2 pr-4 pb-10">
-        <h1 className="text-2xl font-bold mb-6">Empleados</h1>
+        <h1 className="text-2xl font-bold mb-6 font-heading">Empleados</h1>
         <p className="text-muted-foreground">
           No se pudo cargar la información de empleados.
         </p>
@@ -102,7 +102,7 @@ export default async function EmpleadosPage() {
 
   return (
     <div className="p-2 pr-4 pb-10">
-      <h1 className="text-2xl font-bold mb-6">Empleados</h1>
+      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Empleados</h1> */}
       <EmpleadosManager
         empleados={empleadosData.empleados}
         sucursales={sucursales}
