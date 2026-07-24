@@ -2,36 +2,17 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import {
   LogIn,
   LogOut,
   MapPin,
   AlertTriangle,
   Plus,
-  CalendarOff,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -40,11 +21,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useGeolocation } from "@/hooks/use-geolocation";
 import {
-  marcarAsistencia,
-  solicitarDiaPersonal,
-} from "@/actions/asistencia.actions";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useGeolocation } from "@/hooks/use-geolocation";
+import { marcarAsistencia } from "@/actions/asistencia.actions";
 import {
   CONSENTIMIENTO_GEO_DESCRIPCION,
   CONSENTIMIENTO_GEO_DERECHOS,
@@ -122,7 +108,6 @@ export function MiAsistenciaManager({
   const [isPending, startTransition] = useTransition();
   const geo = useGeolocation({ timeoutMs: 8000 });
   const [showConsent, setShowConsent] = useState(false);
-  const [showSolicitud, setShowSolicitud] = useState(false);
   const [ultimoResultado, setUltimoResultado] = useState<{
     tipo: "entrada" | "salida";
     hora: string;
@@ -336,8 +321,10 @@ export function MiAsistenciaManager({
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>Mis solicitudes</span>
-            <Button size="sm" onClick={() => setShowSolicitud(true)}>
-              <Plus className="mr-1 size-4" /> Nueva solicitud
+            <Button asChild size="sm">
+              <Link href="/dashboard/vacations">
+                <Plus className="mr-1 size-4" /> Nueva
+              </Link>
             </Button>
           </CardTitle>
         </CardHeader>
@@ -345,6 +332,17 @@ export function MiAsistenciaManager({
           <SolicitudesList
             solicitudes={solicitudesIniciales as SolicitudPersonal[]}
           />
+          <p className="mt-3 text-xs text-muted-foreground">
+            Las solicitudes de vacaciones, días libres, permisos e
+            incapacidades se gestionan desde el módulo{" "}
+            <Link
+              href="/dashboard/vacations"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Solicitudes
+            </Link>
+            .
+          </p>
         </CardContent>
       </Card>
 
@@ -363,8 +361,6 @@ export function MiAsistenciaManager({
         onAceptar={aceptarConsentimiento}
         onContinuarSinGeo={continuarSinGeo}
       />
-
-      <SolicitudDialog open={showSolicitud} onOpenChange={setShowSolicitud} />
     </div>
   );
 }
@@ -494,119 +490,6 @@ function ConsentDialog({
             Continuar sin ubicación
           </Button>
           <Button onClick={onAceptar}>Aceptar y compartir</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function SolicitudDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const [tipo, setTipo] = useState<"dia_libre" | "permiso" | "incapacidad">(
-    "permiso",
-  );
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
-  const [motivo, setMotivo] = useState("");
-
-  const enviar = () => {
-    if (!fechaInicio || !fechaFin) {
-      toast.error("Indicá fecha de inicio y fin.");
-      return;
-    }
-    if (fechaFin < fechaInicio) {
-      toast.error("La fecha de fin no puede ser anterior.");
-      return;
-    }
-    startTransition(async () => {
-      const res = await solicitarDiaPersonal({
-        tipo,
-        fechaInicio,
-        fechaFin,
-        motivo: motivo || undefined,
-      });
-      if (!res.success) {
-        toast.error(res.message);
-        return;
-      }
-      toast.success(res.message);
-      setFechaInicio("");
-      setFechaFin("");
-      setMotivo("");
-      onOpenChange(false);
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CalendarOff className="size-4" /> Nueva solicitud
-          </DialogTitle>
-          <DialogDescription>
-            RRHH recibirá tu solicitud y la aprobará o rechazará.
-          </DialogDescription>
-        </DialogHeader>
-        <FieldGroup>
-          <Field>
-            <FieldLabel>Tipo</FieldLabel>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as typeof tipo)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="permiso">Permiso</SelectItem>
-                <SelectItem value="dia_libre">Día libre</SelectItem>
-                <SelectItem value="incapacidad">Incapacidad</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Desde</FieldLabel>
-              <Input
-                type="date"
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Hasta</FieldLabel>
-              <Input
-                type="date"
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-              />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel>Motivo (opcional)</FieldLabel>
-            <Textarea
-              rows={3}
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              placeholder="Describí brevemente el motivo."
-            />
-          </Field>
-        </FieldGroup>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={enviar} disabled={isPending}>
-            {isPending ? (
-              <RefreshCw className="size-4 animate-spin" />
-            ) : (
-              "Enviar solicitud"
-            )}
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

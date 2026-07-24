@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { valibotResolver } from "@hookform/resolvers/valibot";
 import { toast } from "sonner";
@@ -14,6 +14,10 @@ import {
   TreePalm,
   Trash2,
   CalendarOff,
+  Inbox,
+  Briefcase,
+  Stethoscope,
+  Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,12 +66,17 @@ import {
 } from "@/actions/vacacion.actions";
 import { eliminarFeriado } from "@/actions/feriados.actions";
 import {
-  SolicitarVacacionSchema,
-  CrearFeriadoSchema,
-} from "@/lib/validations/vacacion";
+  solicitarDiaPersonal,
+  aprobarRechazarSolicitudPersonal,
+} from "@/actions/asistencia.actions";
+import { SolicitarVacacionSchema, CrearFeriadoSchema } from "@/lib/validations/vacacion";
 import type { SolicitarVacacionData, CrearFeriadoData } from "@/lib/validations/vacacion";
 
-interface SolicitudItem {
+// ── Tipos unificados ─────────────────────────────────────────────────────────
+
+type TipoSolicitud = "vacacion" | "dia_libre" | "permiso" | "incapacidad";
+
+interface SolicitudVacacionItem {
   solicitud: {
     id: string;
     empleadoId: string;
@@ -82,7 +91,45 @@ interface SolicitudItem {
   };
   empleadoNombre?: string;
   empleadoApellidos?: string;
-  aprobadoPorNombre?: string;
+  aprobadoPorNombre?: string | null;
+}
+
+interface SolicitudPersonalItem {
+  solicitud: {
+    id: string;
+    empleadoId: string;
+    tipo: TipoSolicitud;
+    fechaInicio: string;
+    fechaFin: string;
+    diasHabiles: number;
+    motivo: string | null;
+    estado: string;
+    aprobadaPor: string | null;
+    aprobadaEn: Date | null;
+    notaResolucion: string | null;
+    createdAt: Date;
+  };
+  empleadoNombre?: string;
+  empleadoApellidos?: string;
+  aprobadoPorNombre?: string | null;
+}
+
+interface SolicitudUnificada {
+  id: string;
+  origen: "vacacion" | "personal";
+  tipo: "vacacion" | "dia_libre" | "permiso" | "incapacidad";
+  fechaInicio: string;
+  fechaFin: string;
+  diasHabiles: number;
+  estado: string;
+  motivo: string | null;
+  motivoRechazo: string | null;
+  notaResolucion: string | null;
+  aprobadoPorNombre: string | null;
+  empleadoNombre: string;
+  empleadoApellidos: string;
+  createdAt: Date;
+  raw: SolicitudVacacionItem["solicitud"] | SolicitudPersonalItem["solicitud"];
 }
 
 interface SaldoItem {
@@ -105,13 +152,89 @@ interface FeriadoItem {
 }
 
 interface VacacionesManagerProps {
-  solicitudes: SolicitudItem[];
+  vacaciones: SolicitudVacacionItem[];
+  personales: SolicitudPersonalItem[];
   saldos: SaldoItem[];
   feriados: FeriadoItem[];
   esEmpleado: boolean;
 }
 
 type Tab = "solicitudes" | "feriados";
+type FiltroTipo = "todas" | "vacacion" | "dia_libre" | "permiso" | "incapacidad";
+
+const TIPO_LABEL: Record<TipoSolicitud, string> = {
+  vacacion: "Vacación",
+  dia_libre: "Día libre",
+  permiso: "Permiso",
+  incapacidad: "Incapacidad",
+};
+
+const TIPO_ICON: Record<TipoSolicitud, React.ComponentType<{ className?: string }>> = {
+  vacacion: TreePalm,
+  dia_libre: Sun,
+  permiso: Briefcase,
+  incapacidad: Stethoscope,
+};
+
+const TIPO_VARIANT: Record<TipoSolicitud, "default" | "secondary" | "outline" | "destructive"> = {
+  vacacion: "default",
+  dia_libre: "secondary",
+  permiso: "outline",
+  incapacidad: "destructive",
+};
+
+function unificar(
+  vacaciones: SolicitudVacacionItem[],
+  personales: SolicitudPersonalItem[],
+): SolicitudUnificada[] {
+  const map = new Map<string, SolicitudUnificada>();
+
+  for (const v of vacaciones) {
+    const key = `v-${v.solicitud.id}`;
+    map.set(key, {
+      id: v.solicitud.id,
+      origen: "vacacion",
+      tipo: "vacacion",
+      fechaInicio: v.solicitud.fechaInicio,
+      fechaFin: v.solicitud.fechaFin,
+      diasHabiles: v.solicitud.diasHabiles,
+      estado: v.solicitud.estado,
+      motivo: v.solicitud.nota,
+      motivoRechazo: v.solicitud.motivoRechazo,
+      notaResolucion: null,
+      aprobadoPorNombre: v.aprobadoPorNombre ?? null,
+      empleadoNombre: v.empleadoNombre ?? "",
+      empleadoApellidos: v.empleadoApellidos ?? "",
+      createdAt: v.solicitud.createdAt,
+      raw: v.solicitud,
+    });
+  }
+
+  for (const p of personales) {
+    const key = `p-${p.solicitud.id}`;
+    map.set(key, {
+      id: p.solicitud.id,
+      origen: "personal",
+      tipo: p.solicitud.tipo,
+      fechaInicio: p.solicitud.fechaInicio,
+      fechaFin: p.solicitud.fechaFin,
+      diasHabiles: p.solicitud.diasHabiles,
+      estado: p.solicitud.estado,
+      motivo: p.solicitud.motivo,
+      motivoRechazo: null,
+      notaResolucion: p.solicitud.notaResolucion,
+      aprobadoPorNombre: p.aprobadoPorNombre ?? null,
+      empleadoNombre: p.empleadoNombre ?? "",
+      empleadoApellidos: p.empleadoApellidos ?? "",
+      createdAt: p.solicitud.createdAt,
+      raw: p.solicitud,
+    });
+  }
+
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
 
 function EstadoBadge({ estado }: { estado: string }) {
   const config: Record<string, { label: string; variant: "default" | "secondary" | "destructive"; className: string }> = {
@@ -146,31 +269,58 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
+function TipoBadge({ tipo }: { tipo: TipoSolicitud }) {
+  const Icon = TIPO_ICON[tipo];
+  return (
+    <Badge variant={TIPO_VARIANT[tipo]} className="gap-1 capitalize">
+      <Icon className="size-3" />
+      {TIPO_LABEL[tipo]}
+    </Badge>
+  );
+}
+
 export function VacacionesManager({
-  solicitudes,
+  vacaciones,
+  personales,
   saldos,
   feriados,
   esEmpleado,
 }: VacacionesManagerProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("solicitudes");
+  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>("todas");
+  const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [isRequestOpen, setIsRequestOpen] = useState(false);
   const [isFeriadoOpen, setIsFeriadoOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [aprobarTarget, setAprobarTarget] = useState<SolicitudItem | null>(null);
-  const [rechazarTarget, setRechazarTarget] = useState<SolicitudItem | null>(null);
-  const [cancelarTarget, setCancelarTarget] = useState<SolicitudItem | null>(null);
+  const [aprobarTarget, setAprobarTarget] = useState<SolicitudUnificada | null>(null);
+  const [rechazarTarget, setRechazarTarget] = useState<SolicitudUnificada | null>(null);
+  const [cancelarTarget, setCancelarTarget] = useState<SolicitudUnificada | null>(null);
   const [eliminarFeriadoTarget, setEliminarFeriadoTarget] = useState<FeriadoItem | null>(null);
-  const [filtroEstado, setFiltroEstado] = useState<string>("todos");
   const [motivoRechazo, setMotivoRechazo] = useState("");
 
   const saldoActual = saldos[0];
 
+  const solicitudes = useMemo(
+    () => unificar(vacaciones, personales),
+    [vacaciones, personales],
+  );
+
   const solicitudesFiltradas = solicitudes.filter((s) => {
+    if (filtroTipo !== "todas" && s.tipo !== filtroTipo) return false;
     if (filtroEstado === "todos") return true;
-    if (filtroEstado === "pendientes") return s.solicitud.estado === "pendiente";
-    return s.solicitud.estado === filtroEstado;
+    if (filtroEstado === "pendientes") return s.estado === "pendiente";
+    return s.estado === filtroEstado;
   });
+
+  // Totales para el encabezado (empleado)
+  const totalesEmpleado = useMemo(() => {
+    return {
+      pendientes: solicitudes.filter((s) => s.estado === "pendiente").length,
+      aprobadas: solicitudes.filter((s) => s.estado === "aprobada").length,
+      rechazadas: solicitudes.filter((s) => s.estado === "rechazada").length,
+    };
+  }, [solicitudes]);
 
   const requestForm = useForm<SolicitarVacacionData>({
     resolver: valibotResolver(SolicitarVacacionSchema),
@@ -190,30 +340,24 @@ export function VacacionesManager({
     } as CrearFeriadoData,
   });
 
-  async function handleRequest(data: SolicitarVacacionData) {
-    setIsSubmitting(true);
-    const res = await solicitarVacacion(data);
-    if (res.success) {
-      toast.success("Solicitud enviada", { description: res.message });
-      setIsRequestOpen(false);
-      requestForm.reset();
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
-  }
-
   async function handleAprobar() {
     if (!aprobarTarget) return;
     setIsSubmitting(true);
-    const res = await aprobarRechazarVacacion({
-      solicitudId: aprobarTarget.solicitud.id,
-      accion: "aprobar",
-    });
+    const res =
+      aprobarTarget.origen === "vacacion"
+        ? await aprobarRechazarVacacion({
+            solicitudId: aprobarTarget.id,
+            accion: "aprobar",
+          })
+        : await aprobarRechazarSolicitudPersonal({
+            solicitudId: aprobarTarget.id,
+            accion: "aprobar",
+            notaResolucion: motivoRechazo || undefined,
+          });
     if (res.success) {
       toast.success("Aprobada", { description: res.message });
       setAprobarTarget(null);
+      setMotivoRechazo("");
       router.refresh();
     } else {
       toast.error("Error", { description: res.message });
@@ -224,11 +368,18 @@ export function VacacionesManager({
   async function handleRechazar() {
     if (!rechazarTarget) return;
     setIsSubmitting(true);
-    const res = await aprobarRechazarVacacion({
-      solicitudId: rechazarTarget.solicitud.id,
-      accion: "rechazar",
-      motivoRechazo: motivoRechazo || undefined,
-    });
+    const res =
+      rechazarTarget.origen === "vacacion"
+        ? await aprobarRechazarVacacion({
+            solicitudId: rechazarTarget.id,
+            accion: "rechazar",
+            motivoRechazo: motivoRechazo || undefined,
+          })
+        : await aprobarRechazarSolicitudPersonal({
+            solicitudId: rechazarTarget.id,
+            accion: "rechazar",
+            notaResolucion: motivoRechazo || undefined,
+          });
     if (res.success) {
       toast.success("Rechazada", { description: res.message });
       setRechazarTarget(null);
@@ -243,7 +394,17 @@ export function VacacionesManager({
   async function handleCancelar() {
     if (!cancelarTarget) return;
     setIsSubmitting(true);
-    const res = await cancelarSolicitudVacacion(cancelarTarget.solicitud.id);
+    const res =
+      cancelarTarget.origen === "vacacion"
+        ? await cancelarSolicitudVacacion(cancelarTarget.id)
+        : // Para solicitudes personales, no hay acción de cancelar explícita
+          // se actualiza a cancelada directamente vía aprobarRechazarSolicitudPersonal
+          // con una acción "cancelar" alternativa. En MVP simplemente se informa.
+          {
+            success: false,
+            message: "Para cancelar solicitudes personales, RRHH debe rechazarla.",
+            data: {},
+          };
     if (res.success) {
       toast.success("Cancelada", { description: res.message });
       setCancelarTarget(null);
@@ -295,7 +456,7 @@ export function VacacionesManager({
   return (
     <>
       {esEmpleado && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardContent className="">
               <div className="flex items-center gap-3">
@@ -303,8 +464,23 @@ export function VacacionesManager({
                   <TreePalm className="size-5 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Disponibles</p>
-                  <p className="text-2xl font-bold">{saldoActual?.diasDisponibles || "0"}</p>
+                  <p className="text-sm text-muted-foreground">Días disponibles</p>
+                  <p className="text-2xl font-bold">
+                    {saldoActual?.diasDisponibles || "0"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                  <Clock className="size-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Pendientes</p>
+                  <p className="text-2xl font-bold">{totalesEmpleado.pendientes}</p>
                 </div>
               </div>
             </CardContent>
@@ -313,11 +489,11 @@ export function VacacionesManager({
             <CardContent className="">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                  <Clock className="size-5 text-blue-600 dark:text-blue-400" />
+                  <CheckCircle2 className="size-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold">{saldoActual?.diasPendientes || "0"}</p>
+                  <p className="text-sm text-muted-foreground">Aprobadas</p>
+                  <p className="text-2xl font-bold">{totalesEmpleado.aprobadas}</p>
                 </div>
               </div>
             </CardContent>
@@ -329,8 +505,10 @@ export function VacacionesManager({
                   <CalendarDays className="size-5 text-gray-600 dark:text-gray-400" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Usados</p>
-                  <p className="text-2xl font-bold">{saldoActual?.diasUsados || "0"}</p>
+                  <p className="text-sm text-muted-foreground">Días usados</p>
+                  <p className="text-2xl font-bold">
+                    {saldoActual?.diasUsados || "0"}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -340,7 +518,9 @@ export function VacacionesManager({
 
       {esEmpleado && saldoActual && (
         <p className="text-sm text-muted-foreground mb-4">
-          Período: {formatDate(saldoActual.periodoInicio)} — {formatDate(saldoActual.periodoFin)} | Días otorgados: {saldoActual.diasOtorgados}
+          Período: {formatDate(saldoActual.periodoInicio)} —{" "}
+          {formatDate(saldoActual.periodoFin)} | Otorgados:{" "}
+          {saldoActual.diasOtorgados}
         </p>
       )}
 
@@ -351,8 +531,13 @@ export function VacacionesManager({
             size="sm"
             onClick={() => setActiveTab("solicitudes")}
           >
-            <CalendarDays className="size-4" />
+            <Inbox className="size-4" />
             Solicitudes
+            {solicitudes.filter((s) => s.estado === "pendiente").length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {solicitudes.filter((s) => s.estado === "pendiente").length}
+              </Badge>
+            )}
           </Button>
           <Button
             variant={activeTab === "feriados" ? "default" : "outline"}
@@ -369,13 +554,28 @@ export function VacacionesManager({
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={filtroTipo}
+                  onValueChange={(v) => setFiltroTipo(v as FiltroTipo)}
+                >
                   <SelectTrigger className="w-45">
-                    <SelectValue placeholder="Filtrar estado" />
+                    <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="todas">Todos los tipos</SelectItem>
+                    <SelectItem value="vacacion">Vacaciones</SelectItem>
+                    <SelectItem value="dia_libre">Días libres</SelectItem>
+                    <SelectItem value="permiso">Permisos</SelectItem>
+                    <SelectItem value="incapacidad">Incapacidades</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+                  <SelectTrigger className="w-45">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos los estados</SelectItem>
                     <SelectItem value="pendientes">Pendientes</SelectItem>
                     <SelectItem value="aprobada">Aprobadas</SelectItem>
                     <SelectItem value="rechazada">Rechazadas</SelectItem>
@@ -386,7 +586,7 @@ export function VacacionesManager({
               {esEmpleado && (
                 <Button onClick={() => setIsRequestOpen(true)}>
                   <Plus />
-                  Solicitar Vacación
+                  Nueva solicitud
                 </Button>
               )}
             </div>
@@ -395,13 +595,14 @@ export function VacacionesManager({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Tipo</TableHead>
                   {!esEmpleado && <TableHead>Empleado</TableHead>}
                   <TableHead>Desde</TableHead>
                   <TableHead>Hasta</TableHead>
                   <TableHead>Días hábiles</TableHead>
                   <TableHead>Estado</TableHead>
-                  <TableHead>Nota</TableHead>
-                  {!esEmpleado && <TableHead>Aprobado por</TableHead>}
+                  <TableHead>Motivo</TableHead>
+                  {!esEmpleado && <TableHead>Resuelta por</TableHead>}
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -409,7 +610,7 @@ export function VacacionesManager({
                 {solicitudesFiltradas.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={esEmpleado ? 6 : 8}
+                      colSpan={esEmpleado ? 7 : 9}
                       className="h-24 text-center text-muted-foreground"
                     >
                       No se encontraron solicitudes.
@@ -417,33 +618,39 @@ export function VacacionesManager({
                   </TableRow>
                 ) : (
                   solicitudesFiltradas.map((item) => (
-                    <TableRow key={item.solicitud.id}>
+                    <TableRow key={`${item.origen}-${item.id}`}>
+                      <TableCell>
+                        <TipoBadge tipo={item.tipo} />
+                      </TableCell>
                       {!esEmpleado && (
                         <TableCell className="font-medium">
                           {item.empleadoNombre} {item.empleadoApellidos}
                         </TableCell>
                       )}
-                      <TableCell>{formatDate(item.solicitud.fechaInicio)}</TableCell>
-                      <TableCell>{formatDate(item.solicitud.fechaFin)}</TableCell>
-                      <TableCell>{item.solicitud.diasHabiles}</TableCell>
+                      <TableCell>{formatDate(item.fechaInicio)}</TableCell>
+                      <TableCell>{formatDate(item.fechaFin)}</TableCell>
+                      <TableCell>{item.diasHabiles}</TableCell>
                       <TableCell>
-                        <EstadoBadge estado={item.solicitud.estado} />
+                        <EstadoBadge estado={item.estado} />
                       </TableCell>
-                      <TableCell className="max-w-50 truncate">
-                        {item.solicitud.nota || "—"}
+                      <TableCell className="max-w-50 truncate text-xs text-muted-foreground">
+                        {item.motivoRechazo
+                          ? `Rechazo: ${item.motivoRechazo}`
+                          : item.notaResolucion
+                            ? `Resolución: ${item.notaResolucion}`
+                            : item.motivo ?? "—"}
                       </TableCell>
                       {!esEmpleado && (
-                        <TableCell>
-                          {item.aprobadoPorNombre || "—"}
-                        </TableCell>
+                        <TableCell>{item.aprobadoPorNombre || "—"}</TableCell>
                       )}
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {!esEmpleado && item.solicitud.estado === "pendiente" && (
+                          {!esEmpleado && item.estado === "pendiente" && (
                             <>
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                title="Aprobar"
                                 onClick={() => setAprobarTarget(item)}
                               >
                                 <CheckCircle2 className="size-4 text-emerald-600" />
@@ -451,21 +658,25 @@ export function VacacionesManager({
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                title="Rechazar"
                                 onClick={() => setRechazarTarget(item)}
                               >
                                 <XCircle className="size-4 text-red-500" />
                               </Button>
                             </>
                           )}
-                          {esEmpleado && item.solicitud.estado === "pendiente" && (
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              onClick={() => setCancelarTarget(item)}
-                            >
-                              <XCircle className="size-4 text-muted-foreground" />
-                            </Button>
-                          )}
+                          {esEmpleado &&
+                            item.origen === "vacacion" &&
+                            item.estado === "pendiente" && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Cancelar"
+                                onClick={() => setCancelarTarget(item)}
+                              >
+                                <XCircle className="size-4 text-muted-foreground" />
+                              </Button>
+                            )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -502,7 +713,10 @@ export function VacacionesManager({
               <TableBody>
                 {feriados.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={5}
+                      className="h-24 text-center text-muted-foreground"
+                    >
                       No hay feriados registrados.
                     </TableCell>
                   </TableRow>
@@ -546,89 +760,34 @@ export function VacacionesManager({
         </Card>
       )}
 
-      <Dialog open={isRequestOpen} onOpenChange={setIsRequestOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Solicitar Vacación</DialogTitle>
-            <DialogDescription>
-              Seleccioná el rango de fechas para tu solicitud. Solo se cuentan días hábiles.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={requestForm.handleSubmit(handleRequest)}>
-            <FieldGroup>
-              <Controller
-                name="fechaInicio"
-                control={requestForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="req-fecha-inicio">Fecha inicio</FieldLabel>
-                    <Input
-                      id="req-fecha-inicio"
-                      type="date"
-                      required
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
-                    )}
-                  </Field>
-                )}
-              />
-              <Controller
-                name="fechaFin"
-                control={requestForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="req-fecha-fin">Fecha fin</FieldLabel>
-                    <Input
-                      id="req-fecha-fin"
-                      type="date"
-                      required
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
-                    )}
-                  </Field>
-                )}
-              />
-              <Controller
-                name="nota"
-                control={requestForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="req-nota">Nota (opcional)</FieldLabel>
-                    <Textarea
-                      id="req-nota"
-                      placeholder="Motivo o comentario..."
-                      {...field}
-                      value={field.value ?? ""}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
-                    )}
-                  </Field>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsRequestOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
-                </Button>
-              </DialogFooter>
-            </FieldGroup>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <SolicitudDialog
+        open={isRequestOpen}
+        onOpenChange={setIsRequestOpen}
+        form={requestForm}
+        isSubmitting={isSubmitting}
+        onSubmitVacacion={async (data) => {
+          const res = await solicitarVacacion(data);
+          if (res.success) {
+            toast.success("Solicitud enviada", { description: res.message });
+            setIsRequestOpen(false);
+            requestForm.reset();
+            router.refresh();
+          } else {
+            toast.error("Error", { description: res.message });
+          }
+        }}
+        onSubmitPersonal={async (payload) => {
+          const res = await solicitarDiaPersonal(payload);
+          if (res.success) {
+            toast.success("Solicitud enviada", { description: res.message });
+            setIsRequestOpen(false);
+            requestForm.reset();
+            router.refresh();
+          } else {
+            toast.error("Error", { description: res.message });
+          }
+        }}
+      />
 
       <Dialog open={isFeriadoOpen} onOpenChange={setIsFeriadoOpen}>
         <DialogContent>
@@ -654,7 +813,9 @@ export function VacacionesManager({
                       aria-invalid={fieldState.invalid}
                     />
                     {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
                     )}
                   </Field>
                 )}
@@ -674,7 +835,9 @@ export function VacacionesManager({
                       aria-invalid={fieldState.invalid}
                     />
                     {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
                     )}
                   </Field>
                 )}
@@ -685,11 +848,11 @@ export function VacacionesManager({
                 render={({ field, fieldState }) => (
                   <Field>
                     <FieldLabel htmlFor="feriado-tipo">Tipo</FieldLabel>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                    >
-                      <SelectTrigger id="feriado-tipo" aria-invalid={fieldState.invalid}>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger
+                        id="feriado-tipo"
+                        aria-invalid={fieldState.invalid}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -699,7 +862,9 @@ export function VacacionesManager({
                       </SelectContent>
                     </Select>
                     {fieldState.error && (
-                      <p className="text-destructive text-sm">{fieldState.error.message}</p>
+                      <p className="text-destructive text-sm">
+                        {fieldState.error.message}
+                      </p>
                     )}
                   </Field>
                 )}
@@ -727,13 +892,14 @@ export function VacacionesManager({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Aprobar Solicitud</AlertDialogTitle>
+            <AlertDialogTitle>Aprobar solicitud</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Aprobar la vacación de{" "}
+              ¿Aprobar la solicitud de{" "}
+              <strong>{TIPO_LABEL[aprobarTarget?.tipo ?? "vacacion"]}</strong> de{" "}
               {aprobarTarget?.empleadoNombre} {aprobarTarget?.empleadoApellidos} del{" "}
-              {aprobarTarget && formatDate(aprobarTarget.solicitud.fechaInicio)} al{" "}
-              {aprobarTarget && formatDate(aprobarTarget.solicitud.fechaFin)} (
-              {aprobarTarget?.solicitud.diasHabiles} días hábiles)?
+              {aprobarTarget && formatDate(aprobarTarget.fechaInicio)} al{" "}
+              {aprobarTarget && formatDate(aprobarTarget.fechaFin)} (
+              {aprobarTarget?.diasHabiles} días hábiles)?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -756,11 +922,12 @@ export function VacacionesManager({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rechazar Solicitud</DialogTitle>
+            <DialogTitle>Rechazar solicitud</DialogTitle>
             <DialogDescription>
-              Rechazar la vacación de{" "}
+              Vas a rechazar la solicitud de{" "}
+              <strong>{TIPO_LABEL[rechazarTarget?.tipo ?? "vacacion"]}</strong> de{" "}
               {rechazarTarget?.empleadoNombre} {rechazarTarget?.empleadoApellidos} (
-              {rechazarTarget?.solicitud.diasHabiles} días hábiles).
+              {rechazarTarget?.diasHabiles} días hábiles).
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
@@ -801,11 +968,12 @@ export function VacacionesManager({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Solicitud</AlertDialogTitle>
+            <AlertDialogTitle>Cancelar solicitud</AlertDialogTitle>
             <AlertDialogDescription>
-              ¿Cancelar tu solicitud de vacación del{" "}
-              {cancelarTarget && formatDate(cancelarTarget.solicitud.fechaInicio)} al{" "}
-              {cancelarTarget && formatDate(cancelarTarget.solicitud.fechaFin)}?
+              ¿Cancelar tu solicitud de{" "}
+              <strong>{TIPO_LABEL[cancelarTarget?.tipo ?? "vacacion"]}</strong> del{" "}
+              {cancelarTarget && formatDate(cancelarTarget.fechaInicio)} al{" "}
+              {cancelarTarget && formatDate(cancelarTarget.fechaFin)}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -842,5 +1010,179 @@ export function VacacionesManager({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+// ── Diálogo unificado de nueva solicitud ────────────────────────────────────
+
+interface SolicitudDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  form: ReturnType<typeof useForm<SolicitarVacacionData>>;
+  isSubmitting: boolean;
+  onSubmitVacacion: (data: SolicitarVacacionData) => Promise<void>;
+  onSubmitPersonal: (data: {
+    tipo: "dia_libre" | "permiso" | "incapacidad";
+    fechaInicio: string;
+    fechaFin: string;
+    motivo: string | undefined;
+  }) => Promise<void>;
+}
+
+function SolicitudDialog({
+  open,
+  onOpenChange,
+  form,
+  isSubmitting,
+  onSubmitVacacion,
+  onSubmitPersonal,
+}: SolicitudDialogProps) {
+  const [tipo, setTipo] = useState<TipoSolicitud>("vacacion");
+
+  const enviar = form.handleSubmit(async (data) => {
+    if (tipo === "vacacion") {
+      await onSubmitVacacion(data);
+    } else {
+      await onSubmitPersonal({
+        tipo: tipo as "dia_libre" | "permiso" | "incapacidad",
+        fechaInicio: data.fechaInicio,
+        fechaFin: data.fechaFin,
+        motivo: data.nota,
+      });
+    }
+  });
+
+  const Icon = TIPO_ICON[tipo];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Icon className="size-4" /> Nueva solicitud
+          </DialogTitle>
+          <DialogDescription>
+            RRHH recibirá tu solicitud y la aprobará o rechazará. Las vacaciones
+            consumen tu saldo disponible; los demás tipos no.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={enviar}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Tipo de solicitud</FieldLabel>
+              <Select
+                value={tipo}
+                onValueChange={(v) => setTipo(v as TipoSolicitud)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vacacion">
+                    <div className="flex items-center gap-2">
+                      <TreePalm className="size-4" /> Vacación
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="dia_libre">
+                    <div className="flex items-center gap-2">
+                      <Sun className="size-4" /> Día libre
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="permiso">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="size-4" /> Permiso
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="incapacidad">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="size-4" /> Incapacidad
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Controller
+              name="fechaInicio"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor="req-fecha-inicio">Fecha inicio</FieldLabel>
+                  <Input
+                    id="req-fecha-inicio"
+                    type="date"
+                    required
+                    {...field}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.error && (
+                    <p className="text-destructive text-sm">
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </Field>
+              )}
+            />
+            <Controller
+              name="fechaFin"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor="req-fecha-fin">Fecha fin</FieldLabel>
+                  <Input
+                    id="req-fecha-fin"
+                    type="date"
+                    required
+                    {...field}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.error && (
+                    <p className="text-destructive text-sm">
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </Field>
+              )}
+            />
+            <Controller
+              name="nota"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field>
+                  <FieldLabel htmlFor="req-nota">Motivo / nota (opcional)</FieldLabel>
+                  <Textarea
+                    id="req-nota"
+                    placeholder={
+                      tipo === "vacacion"
+                        ? "Motivo o comentario..."
+                        : "Describí brevemente el motivo."
+                    }
+                    {...field}
+                    value={field.value ?? ""}
+                    aria-invalid={fieldState.invalid}
+                  />
+                  {fieldState.error && (
+                    <p className="text-destructive text-sm">
+                      {fieldState.error.message}
+                    </p>
+                  )}
+                </Field>
+              )}
+            />
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
+              </Button>
+            </DialogFooter>
+          </FieldGroup>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

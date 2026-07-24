@@ -1,7 +1,7 @@
 import { getResumenVacaciones } from "@/actions/vacacion.actions";
 import { VacacionesManager } from "@/components/modules/vacaciones/vacaciones-manager";
 
-interface SolicitudItem {
+interface SolicitudVacacionItem {
   solicitud: {
     id: string;
     empleadoId: string;
@@ -16,7 +16,27 @@ interface SolicitudItem {
   };
   empleadoNombre?: string;
   empleadoApellidos?: string;
-  aprobadoPorNombre?: string;
+  aprobadoPorNombre?: string | null;
+}
+
+interface SolicitudPersonalItem {
+  solicitud: {
+    id: string;
+    empleadoId: string;
+    tipo: "dia_libre" | "permiso" | "incapacidad" | "vacacion";
+    fechaInicio: string;
+    fechaFin: string;
+    diasHabiles: number;
+    motivo: string | null;
+    estado: string;
+    aprobadaPor: string | null;
+    aprobadaEn: Date | null;
+    notaResolucion: string | null;
+    createdAt: Date;
+  };
+  empleadoNombre?: string;
+  empleadoApellidos?: string;
+  aprobadoPorNombre?: string | null;
 }
 
 interface SaldoItem {
@@ -39,7 +59,8 @@ interface FeriadoItem {
 }
 
 interface ResumenData {
-  solicitudes?: SolicitudItem[];
+  vacaciones?: SolicitudVacacionItem[];
+  personales?: SolicitudPersonalItem[];
   saldos?: SaldoItem[];
   feriados?: FeriadoItem[];
   esEmpleado: boolean;
@@ -48,7 +69,8 @@ interface ResumenData {
 export default async function VacacionesPage() {
   const result = await getResumenVacaciones();
   const data = (result.data as ResumenData) || {
-    solicitudes: [],
+    vacaciones: [],
+    personales: [],
     saldos: [],
     feriados: [],
     esEmpleado: true,
@@ -56,9 +78,10 @@ export default async function VacacionesPage() {
 
   return (
     <div className="p-2 pr-4">
-      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Vacaciones</h1> */}
+      <h1 className="text-2xl font-bold mb-6 font-heading">Solicitudes</h1>
       <VacacionesManager
-        solicitudes={data.solicitudes || []}
+        vacaciones={data.vacaciones || []}
+        personales={data.personales || []}
         saldos={data.saldos || []}
         feriados={data.feriados || []}
         esEmpleado={data.esEmpleado}

@@ -7,6 +7,7 @@ import { db } from "@/db/drizzle";
 import { feriado } from "@/db/schema/feriado.schema";
 import { saldoVacaciones } from "@/db/schema/saldo-vacaciones.schema";
 import { solicitudVacacion } from "@/db/schema/solicitud-vacacion.schema";
+import { solicitudPersonal } from "@/db/schema/solicitud-personal.schema";
 import { empleado } from "@/db/schema/empleado.schema";
 import { user } from "@/db/schema/auth.schema";
 import { eq, and, desc, sql } from "drizzle-orm";
@@ -562,7 +563,7 @@ export async function getResumenVacaciones(): Promise<ActionResponse> {
         .where(eq(saldoVacaciones.empleadoId, emp.id))
         .orderBy(desc(saldoVacaciones.periodoInicio));
 
-      const solicitudes = await db
+      const vacaciones = await db
         .select({
           solicitud: solicitudVacacion,
           aprobadoPorNombre: user.name,
@@ -572,14 +573,29 @@ export async function getResumenVacaciones(): Promise<ActionResponse> {
         .where(eq(solicitudVacacion.empleadoId, emp.id))
         .orderBy(desc(solicitudVacacion.createdAt));
 
+      const personales = await db
+        .select({
+          solicitud: solicitudPersonal,
+          aprobadoPorNombre: user.name,
+        })
+        .from(solicitudPersonal)
+        .leftJoin(user, eq(solicitudPersonal.aprobadaPor, user.id))
+        .where(eq(solicitudPersonal.empleadoId, emp.id))
+        .orderBy(desc(solicitudPersonal.createdAt));
+
       return {
         success: true,
         message: "Resumen obtenido exitosamente",
-        data: { saldos, solicitudes, esEmpleado: true },
+        data: {
+          saldos,
+          vacaciones,
+          personales,
+          esEmpleado: true,
+        },
       };
     }
 
-    const solicitudes = await db
+    const vacaciones = await db
       .select({
         solicitud: solicitudVacacion,
         empleadoNombre: empleado.nombre,
@@ -591,6 +607,18 @@ export async function getResumenVacaciones(): Promise<ActionResponse> {
       .leftJoin(user, eq(solicitudVacacion.aprobadoPor, user.id))
       .orderBy(desc(solicitudVacacion.createdAt));
 
+    const personales = await db
+      .select({
+        solicitud: solicitudPersonal,
+        empleadoNombre: empleado.nombre,
+        empleadoApellidos: empleado.apellidos,
+        aprobadoPorNombre: user.name,
+      })
+      .from(solicitudPersonal)
+      .innerJoin(empleado, eq(solicitudPersonal.empleadoId, empleado.id))
+      .leftJoin(user, eq(solicitudPersonal.aprobadaPor, user.id))
+      .orderBy(desc(solicitudPersonal.createdAt));
+
     const feriadosResult = await db
       .select()
       .from(feriado)
@@ -599,7 +627,12 @@ export async function getResumenVacaciones(): Promise<ActionResponse> {
     return {
       success: true,
       message: "Resumen obtenido exitosamente",
-      data: { solicitudes, feriados: feriadosResult, esEmpleado: false },
+      data: {
+        vacaciones,
+        personales,
+        feriados: feriadosResult,
+        esEmpleado: false,
+      },
     };
   } catch (error) {
     logger.error("VACACION", "Error al obtener resumen:", error);

@@ -207,7 +207,7 @@ function MySidebar({
 
           {accessVacations && (
             <SidebarMenuItem>
-              <TooltipShow open={open} content="Vacaciones">
+              <TooltipShow open={open} content="Solicitudes">
                 <Link href="/dashboard/vacations">
                   <Button
                     variant="ghost"
@@ -215,7 +215,7 @@ function MySidebar({
                     className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
                   >
                     <TreePalm className="size-5" />
-                    {open && <span>Vacaciones</span>}
+                    {open && <span>Solicitudes</span>}
                   </Button>
                 </Link>
               </TooltipShow>
