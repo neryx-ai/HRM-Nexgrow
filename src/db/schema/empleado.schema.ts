@@ -9,6 +9,7 @@ import {
   date,
   time,
   timestamp,
+  boolean,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -20,6 +21,8 @@ import { registroAsistencia } from "./registro-asistencia.schema";
 import { resumenAsistenciaDiaria } from "./resumen-asistencia-diaria.schema";
 import { saldoVacaciones } from "./saldo-vacaciones.schema";
 import { solicitudVacacion } from "./solicitud-vacacion.schema";
+import { solicitudPersonal } from "./solicitud-personal.schema";
+import { notificacionGeo } from "./notificacion-geo.schema";
 
 export const empleado = pgTable(
   "empleado",
@@ -53,6 +56,13 @@ export const empleado = pgTable(
     pin: varchar("pin", { length: 6 }),
 
     estado: varchar("estado", { length: 20 }).notNull().default("activo"),
+
+    geolocalizacionHabilitada: boolean("geolocalizacion_habilitada")
+      .notNull()
+      .default(false),
+    consentimientoGeolocalizacionAt: timestamp(
+      "consentimiento_geolocalizacion_at",
+    ),
 
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -88,4 +98,6 @@ export const empleadoRelations = relations(empleado, ({ one, many }) => ({
   resumenesAsistencia: many(resumenAsistenciaDiaria),
   saldosVacaciones: many(saldoVacaciones),
   solicitudesVacacion: many(solicitudVacacion),
+  solicitudesPersonal: many(solicitudPersonal),
+  notificacionesGeo: many(notificacionGeo),
 }));

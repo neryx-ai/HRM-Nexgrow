@@ -5,11 +5,15 @@ import {
   varchar,
   text,
   timestamp,
+  doublePrecision,
+  integer,
+  boolean,
   index,
 } from "drizzle-orm/pg-core";
 import { empleado } from "./empleado.schema";
 import { dispositivoQuiosco } from "./dispositivo-quiosco.schema";
 import { user } from "./auth.schema";
+import { sucursal } from "./sucursal.schema";
 
 export const registroAsistencia = pgTable(
   "registro_asistencia",
@@ -26,6 +30,22 @@ export const registroAsistencia = pgTable(
     }),
     registradoPor: text("registrado_por").references(() => user.id),
     nota: text("nota"),
+
+    latEmpleado: doublePrecision("lat_empleado"),
+    lngEmpleado: doublePrecision("lng_empleado"),
+    precisionMetros: doublePrecision("precision_metros"),
+    fuenteCoordenada: varchar("fuente_coordenada", { length: 20 })
+      .notNull()
+      .default("no-enviada"),
+    distanciaSucursalM: integer("distancia_sucursal_m"),
+    dentroGeocerca: boolean("dentro_geocerca"),
+    fueraDeGeocerca: boolean("fuera_de_geocerca").notNull().default(false),
+    sucursalId: uuid("sucursal_id").references(() => sucursal.id, {
+      onDelete: "set null",
+    }),
+    ipOrigen: text("ip_origen"),
+    userAgent: text("user_agent"),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
@@ -33,6 +53,7 @@ export const registroAsistencia = pgTable(
     index("registro_asistencia_dispositivo_id_idx").on(table.dispositivoId),
     index("registro_asistencia_timestamp_idx").on(table.timestamp),
     index("registro_asistencia_tipo_idx").on(table.tipo),
+    index("registro_asistencia_fuera_geocerca_idx").on(table.fueraDeGeocerca),
   ],
 );
 
@@ -50,6 +71,10 @@ export const registroAsistenciaRelations = relations(
     registradoPorUser: one(user, {
       fields: [registroAsistencia.registradoPor],
       references: [user.id],
+    }),
+    sucursal: one(sucursal, {
+      fields: [registroAsistencia.sucursalId],
+      references: [sucursal.id],
     }),
   }),
 );

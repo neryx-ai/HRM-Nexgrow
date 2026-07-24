@@ -4,7 +4,7 @@ import { db } from "@/db/drizzle";
 import { user } from "@/db/schema/auth.schema";
 import { eq } from "drizzle-orm";
 
-const publicPaths = ["/login", "/password-recovery", "/api/auth", "/quiosco"];
+const publicPaths = ["/login", "/password-recovery", "/api/auth"];
 
 function isPublicPath(pathname: string): boolean {
   return publicPaths.some((path) => pathname.startsWith(path));

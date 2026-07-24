@@ -11,6 +11,7 @@ import {
   CreateSucursalSchema,
   UpdateSucursalSchema,
 } from "@/lib/validations/sucursal";
+import { UpdateGeocercaSchema } from "@/lib/validations/asistencia";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import { registrarAuditoria } from "@/lib/auditoria";
@@ -269,5 +270,115 @@ export async function toggleSucursalEstado(
   } catch (error) {
     logger.error("SUCURSAL", "Error al cambiar estado de sucursal:", error);
     return { success: false, message: "Error al cambiar estado", data: {} };
+  }
+}
+
+export async function updateGeocerca(
+  formData: unknown,
+): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return {
+        success: false,
+        message: "No tenés permisos para editar geocercas",
+        data: {},
+      };
+    }
+
+    const parsed = v.safeParse(UpdateGeocercaSchema, formData);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: "Datos inválidos",
+        data: { errors: parsed.issues },
+      };
+    }
+
+    const data = parsed.output;
+
+    if (
+      data.geocercaActiva &&
+      (data.latitud == null || data.longitud == null)
+    ) {
+      return {
+        success: false,
+        message:
+          "Para activar la geocerca debés indicar latitud y longitud.",
+        data: {},
+      };
+    }
+
+    const [antes] = await db
+      .select({
+        latitud: sucursal.latitud,
+        longitud: sucursal.longitud,
+        radioMetros: sucursal.radioMetros,
+        geocercaActiva: sucursal.geocercaActiva,
+        tipoGeocerca: sucursal.tipoGeocerca,
+      })
+      .from(sucursal)
+      .where(eq(sucursal.id, data.sucursalId))
+      .limit(1);
+
+    if (!antes) {
+      return { success: false, message: "Sucursal no encontrada", data: {} };
+    }
+
+    const [updated] = await db
+      .update(sucursal)
+      .set({
+        latitud: data.latitud ?? null,
+        longitud: data.longitud ?? null,
+        radioMetros: data.radioMetros,
+        geocercaActiva: data.geocercaActiva,
+        updatedAt: new Date(),
+      })
+      .where(eq(sucursal.id, data.sucursalId))
+      .returning();
+
+    if (!updated) {
+      return { success: false, message: "Sucursal no encontrada", data: {} };
+    }
+
+    revalidatePath("/dashboard/sucursales");
+
+    logger.info("SUCURSAL", `Geocerca actualizada: ${updated.id}`);
+
+    await registrarAuditoria({
+      tabla: "sucursal",
+      registroId: updated.id,
+      accion: "editar",
+      antes: antes as Record<string, unknown>,
+      despues: {
+        latitud: updated.latitud,
+        longitud: updated.longitud,
+        radioMetros: updated.radioMetros,
+        geocercaActiva: updated.geocercaActiva,
+        tipoGeocerca: updated.tipoGeocerca,
+      },
+      realizadoPor: session.user.id,
+    });
+
+    return {
+      success: true,
+      message: "Geocerca actualizada",
+      data: { sucursal: updated },
+    };
+  } catch (error) {
+    logger.error("SUCURSAL", "Error al actualizar geocerca:", error);
+    return {
+      success: false,
+      message: "Error al actualizar geocerca",
+      data: {},
+    };
   }
 }
