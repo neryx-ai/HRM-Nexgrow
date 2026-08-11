@@ -286,6 +286,12 @@ export async function otorgarVacacion(
     let movimientoId = "";
     let resumenPost: ResumenSaldo | null = null;
 
+    const snapshotOtorgamiento = {
+      diasDevengadosAlOtorgar: resumenPre.diasDevengados,
+      totalOtorgadosAlOtorgar: resumenPre.diasOtorgados,
+      saldoRestanteAlOtorgar: resumenPre.diasDisponibles - diasHabiles,
+    };
+
     await db.transaction(async (tx) => {
       const [nuevoMov] = await tx
         .insert(movimientoSaldoVacacion)
@@ -299,6 +305,7 @@ export async function otorgarVacacion(
             fechaInicio: data.fechaInicio,
             fechaFin: data.fechaFin,
             dias: diasHabiles,
+            ...snapshotOtorgamiento,
           },
         })
         .returning({ id: movimientoSaldoVacacion.id });
@@ -612,6 +619,72 @@ async function verificarAccesoMovimiento(
   return emp?.id === empId;
 }
 
+interface BoletaSnapshot {
+  fechaEmision: string;
+  fechaInicio: string;
+  fechaFin: string;
+  dias: number;
+  diasDevengados: number;
+  totalOtorgados: number;
+  saldoRestante: number;
+}
+
+interface SnapshotOtorgamiento {
+  diasDevengadosAlOtorgar?: number;
+  totalOtorgadosAlOtorgar?: number;
+  saldoRestanteAlOtorgar?: number;
+}
+
+interface MetaOtorgamiento extends SnapshotOtorgamiento {
+  fechaInicio?: string;
+  fechaFin?: string;
+  dias?: number;
+}
+
+/**
+ * Construye los datos para la boleta usando el snapshot guardado en metadata
+ * al momento de la creación del movimiento. Si no hay snapshot (movimiento
+ * legacy), usa el cálculo actual como fallback.
+ */
+async function construirSnapshotBoleta(
+  data: NonNullable<Awaited<ReturnType<typeof cargarMovimientoParaBoleta>>>,
+): Promise<BoletaSnapshot> {
+  const meta = (data.movimiento.metadata ?? {}) as MetaOtorgamiento;
+  const resumenActual = await calcularSaldoEmpleado(data.movimiento.empleadoId);
+
+  if (
+    typeof meta.diasDevengadosAlOtorgar === "number" &&
+    typeof meta.totalOtorgadosAlOtorgar === "number" &&
+    typeof meta.saldoRestanteAlOtorgar === "number"
+  ) {
+    return {
+      fechaEmision: new Date(data.movimiento.fecha).toLocaleDateString(
+        "es-CR",
+        { year: "numeric", month: "2-digit", day: "2-digit" },
+      ),
+      fechaInicio: meta.fechaInicio ?? "",
+      fechaFin: meta.fechaFin ?? "",
+      dias: Math.abs(data.movimiento.dias),
+      diasDevengados: meta.diasDevengadosAlOtorgar,
+      totalOtorgados: meta.totalOtorgadosAlOtorgar,
+      saldoRestante: meta.saldoRestanteAlOtorgar,
+    };
+  }
+
+  return {
+    fechaEmision: new Date(data.movimiento.fecha).toLocaleDateString(
+      "es-CR",
+      { year: "numeric", month: "2-digit", day: "2-digit" },
+    ),
+    fechaInicio: meta.fechaInicio ?? "",
+    fechaFin: meta.fechaFin ?? "",
+    dias: Math.abs(data.movimiento.dias),
+    diasDevengados: resumenActual.diasDevengados,
+    totalOtorgados: resumenActual.diasOtorgados,
+    saldoRestante: resumenActual.diasDisponibles,
+  };
+}
+
 export async function generarBoletaVacacion(input: {
   movimientoId: string;
 }): Promise<ActionResponse> {
@@ -645,22 +718,7 @@ export async function generarBoletaVacacion(input: {
       return { success: false, message: "Empleado no encontrado", data: {} };
     }
 
-    const resumen = await calcularSaldoEmpleado(data.movimiento.empleadoId);
-
-    const meta = (data.movimiento.metadata ?? {}) as {
-      fechaInicio?: string;
-      fechaFin?: string;
-      dias?: number;
-    };
-
-    const fechaInicio = meta.fechaInicio ?? "";
-    const fechaFin = meta.fechaFin ?? "";
-    const dias = Math.abs(data.movimiento.dias);
-
-    const fechaEmision = new Date(data.movimiento.fecha).toLocaleDateString(
-      "es-CR",
-      { year: "numeric", month: "2-digit", day: "2-digit" },
-    );
+    const snapshot = await construirSnapshotBoleta(data);
 
     const buffer = await generarBoletaVacacionPdf({
       empresa: {
@@ -676,13 +734,13 @@ export async function generarBoletaVacacion(input: {
         fechaIngreso: data.empleado.fechaIngreso,
         email: data.empleado.email,
       },
-      fechaEmision,
-      fechaInicio,
-      fechaFin,
-      dias,
-      diasDevengados: resumen.diasDevengados,
-      totalOtorgados: resumen.diasOtorgados,
-      saldoRestante: resumen.diasDisponibles,
+      fechaEmision: snapshot.fechaEmision,
+      fechaInicio: snapshot.fechaInicio,
+      fechaFin: snapshot.fechaFin,
+      dias: snapshot.dias,
+      diasDevengados: snapshot.diasDevengados,
+      totalOtorgados: snapshot.totalOtorgados,
+      saldoRestante: snapshot.saldoRestante,
       motivo: data.movimiento.motivo,
       realizadoPorNombre: data.realizadoPorNombre ?? "RRHH",
       movimientoId: data.movimiento.id,
@@ -736,17 +794,8 @@ export async function reenviarBoletaEmail(input: {
       };
     }
 
-    const resumen = await calcularSaldoEmpleado(data.movimiento.empleadoId);
-    const meta = (data.movimiento.metadata ?? {}) as {
-      fechaInicio?: string;
-      fechaFin?: string;
-    };
-    const dias = Math.abs(data.movimiento.dias);
-
-    const fechaEmision = new Date(data.movimiento.fecha).toLocaleDateString(
-      "es-CR",
-      { year: "numeric", month: "2-digit", day: "2-digit" },
-    );
+    const snapshot = await construirSnapshotBoleta(data);
+    const dias = snapshot.dias;
 
     const buffer = await generarBoletaVacacionPdf({
       empresa: { nombre: "DISTRIBUIDORA JIVIS S.A.", telefono: null },
@@ -759,13 +808,13 @@ export async function reenviarBoletaEmail(input: {
         fechaIngreso: data.empleado.fechaIngreso,
         email: data.empleado.email,
       },
-      fechaEmision,
-      fechaInicio: meta.fechaInicio ?? "",
-      fechaFin: meta.fechaFin ?? "",
+      fechaEmision: snapshot.fechaEmision,
+      fechaInicio: snapshot.fechaInicio,
+      fechaFin: snapshot.fechaFin,
       dias,
-      diasDevengados: resumen.diasDevengados,
-      totalOtorgados: resumen.diasOtorgados,
-      saldoRestante: resumen.diasDisponibles,
+      diasDevengados: snapshot.diasDevengados,
+      totalOtorgados: snapshot.totalOtorgados,
+      saldoRestante: snapshot.saldoRestante,
       motivo: data.movimiento.motivo,
       realizadoPorNombre: data.realizadoPorNombre ?? "RRHH",
       movimientoId: data.movimiento.id,
@@ -776,10 +825,10 @@ export async function reenviarBoletaEmail(input: {
     const html = emailService.buildVacacionOtorgadaEmailHtml({
       nombre: `${data.empleado.nombre} ${data.empleado.apellidos}`,
       dias,
-      fechaInicio: meta.fechaInicio ?? "",
-      fechaFin: meta.fechaFin ?? "",
+      fechaInicio: snapshot.fechaInicio,
+      fechaFin: snapshot.fechaFin,
       motivo: data.movimiento.motivo,
-      saldoRestante: resumen.diasDisponibles,
+      saldoRestante: snapshot.saldoRestante,
     });
 
     const ok = await emailService.sendEmailWithAttachment({
