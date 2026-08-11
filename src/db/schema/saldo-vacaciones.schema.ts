@@ -5,11 +5,13 @@ import {
   integer,
   date,
   timestamp,
+  text,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
 import { empleado } from "./empleado.schema";
-import { solicitudVacacion } from "./solicitud-vacacion.schema";
+import { user } from "./auth.schema";
+import { movimientoSaldoVacacion } from "./movimiento-saldo-vacacion.schema";
 
 export const saldoVacaciones = pgTable(
   "saldo_vacaciones",
@@ -23,7 +25,10 @@ export const saldoVacaciones = pgTable(
     diasOtorgados: integer("dias_otorgados").notNull().default(0),
     diasDisponibles: integer("dias_disponibles").notNull().default(0),
     diasUsados: integer("dias_usados").notNull().default(0),
-    diasPendientes: integer("dias_pendientes").notNull().default(0),
+    ultimaActualizacion: timestamp("ultima_actualizacion")
+      .notNull()
+      .defaultNow(),
+    actualizadoPor: text("actualizado_por").references(() => user.id),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -46,6 +51,10 @@ export const saldoVacacionesRelations = relations(
       fields: [saldoVacaciones.empleadoId],
       references: [empleado.id],
     }),
-    solicitudes: many(solicitudVacacion),
+    actualizadoPorUser: one(user, {
+      fields: [saldoVacaciones.actualizadoPor],
+      references: [user.id],
+    }),
+    movimientos: many(movimientoSaldoVacacion),
   }),
 );

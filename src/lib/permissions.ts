@@ -10,11 +10,14 @@ const statement = {
   asistencia: [
     "marcar-quiosco", // Solo el quiosco (token), no requiere sesión de usuario
     "marcar-manual", // Admin/RRHH registran entrada/salida manualmente
+    "marcar-self", // Empleado marca su propia asistencia desde su sesión
     "list", // Ver asistencia de todos
     "list-own", // Ver la propia asistencia
     "edit", // Corregir un registro existente
   ],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
+  solicitudPersonal: ["request", "approve", "list-own", "list"],
+  notificacionGeo: ["list", "resolve"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
   reporte: ["ver-gerencial"],
   quiosco: ["activar"], // Permiso para configurar/abrir la vista de quiosco
@@ -31,8 +34,10 @@ export const adminRole = ac.newRole({
   sucursal: ["create", "update", "delete", "list"],
   puesto: ["create", "update", "delete", "list"],
   empleado: ["create", "update", "delete", "list", "view-own"],
-  asistencia: ["marcar-manual", "list", "list-own", "edit"],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  asistencia: ["marcar-manual", "marcar-self", "list", "list-own", "edit"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
+  solicitudPersonal: ["request", "approve", "list", "list-own"],
+  notificacionGeo: ["list", "resolve"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
   reporte: ["ver-gerencial"],
   quiosco: ["activar"],
@@ -44,10 +49,12 @@ export const adminRole = ac.newRole({
 // Gestión operativa. No puede eliminar sucursales ni puestos, no ve reportes gerenciales.
 export const rrhhRole = ac.newRole({
   empleado: ["create", "update", "list", "view-own"],
-  asistencia: ["marcar-manual", "list", "list-own", "edit"],
+  asistencia: ["marcar-manual", "marcar-self", "list", "list-own", "edit"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
   quiosco: ["activar"],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
+  solicitudPersonal: ["request", "approve", "list", "list-own"],
+  notificacionGeo: ["list", "resolve"],
   perfil: ["ver", "editar"],
 });
 
@@ -55,7 +62,8 @@ export const rrhhRole = ac.newRole({
 // Solo acceso a su propia información.
 export const empleadoRole = ac.newRole({
   empleado: ["view-own"],
-  asistencia: ["list-own"], // Ver su historial, pero NO marcar (eso es el quiosco)
-  vacacion: ["solicitar", "list-own"],
+  asistencia: ["marcar-self", "list-own"], // Marca y ve su propia asistencia
+  vacacion: ["list-own"],
+  solicitudPersonal: ["request", "list-own"],
   perfil: ["ver", "editar"],
 });

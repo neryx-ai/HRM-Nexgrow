@@ -23,7 +23,9 @@ import {
   LayoutDashboard,
   Settings,
   TreePalm,
+  UserCheck,
   Wallet,
+  CalendarOff,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
@@ -75,9 +77,25 @@ function MySidebar({
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
       "empleado",
   });
+  const accessDaysOff = authClient.admin.checkRolePermission({
+    permission: {
+      solicitudPersonal: ["list-own"],
+    },
+    role:
+      (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
+      "empleado",
+  });
   const accessAttendance = authClient.admin.checkRolePermission({
     permission: {
       asistencia: ["list-own"],
+    },
+    role:
+      (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
+      "empleado",
+  });
+  const accessMiAsistencia = authClient.admin.checkRolePermission({
+    permission: {
+      asistencia: ["marcar-self"],
     },
     role:
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
@@ -207,6 +225,40 @@ function MySidebar({
                   >
                     <TreePalm className="size-5" />
                     {open && <span>Vacaciones</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
+            </SidebarMenuItem>
+          )}
+
+          {accessDaysOff && (
+            <SidebarMenuItem>
+              <TooltipShow open={open} content="Días libres">
+                <Link href="/dashboard/days-off">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <CalendarOff className="size-5" />
+                    {open && <span>Días libres</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
+            </SidebarMenuItem>
+          )}
+
+          {accessMiAsistencia && (
+            <SidebarMenuItem>
+              <TooltipShow open={open} content="Mi asistencia">
+                <Link href="/dashboard/mi-asistencia">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <UserCheck className="size-5" />
+                    {open && <span>Mi asistencia</span>}
                   </Button>
                 </Link>
               </TooltipShow>

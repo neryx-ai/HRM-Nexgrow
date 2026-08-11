@@ -390,6 +390,15 @@ export async function agregarDeduccionAdicional(
       };
     }
 
+    if (detalle.empleadoId !== data.empleadoId) {
+      return {
+        success: false,
+        message:
+          "El empleado de la deducción no coincide con el del detalle de planilla.",
+        data: {},
+      };
+    }
+
     await db.insert(deduccionAdicional).values({
       detallePlanillaId: data.detallePlanillaId,
       empleadoId: data.empleadoId,
@@ -444,6 +453,22 @@ export async function eliminarDeduccionAdicional(
       return {
         success: false,
         message: "Deducción no encontrada",
+        data: {},
+      };
+    }
+
+    const [planillaDed] = await db
+      .select({ estado: planilla.estado })
+      .from(planilla)
+      .innerJoin(detallePlanilla, eq(detallePlanilla.planillaId, planilla.id))
+      .where(eq(detallePlanilla.id, ded.detallePlanillaId))
+      .limit(1);
+
+    if (planillaDed && planillaDed.estado !== "borrador") {
+      return {
+        success: false,
+        message:
+          "Solo se puede eliminar una deducción de una planilla en estado borrador.",
         data: {},
       };
     }
@@ -524,6 +549,15 @@ export async function agregarIngresoExtra(
       };
     }
 
+    if (detalle.empleadoId !== data.empleadoId) {
+      return {
+        success: false,
+        message:
+          "El empleado del ingreso extra no coincide con el del detalle de planilla.",
+        data: {},
+      };
+    }
+
     await db.insert(ingresoExtra).values({
       detallePlanillaId: data.detallePlanillaId,
       empleadoId: data.empleadoId,
@@ -578,6 +612,22 @@ export async function eliminarIngresoExtra(
       return {
         success: false,
         message: "Ingreso extra no encontrado",
+        data: {},
+      };
+    }
+
+    const [planillaIng] = await db
+      .select({ estado: planilla.estado })
+      .from(planilla)
+      .innerJoin(detallePlanilla, eq(detallePlanilla.planillaId, planilla.id))
+      .where(eq(detallePlanilla.id, ing.detallePlanillaId))
+      .limit(1);
+
+    if (planillaIng && planillaIng.estado !== "borrador") {
+      return {
+        success: false,
+        message:
+          "Solo se puede eliminar un ingreso extra de una planilla en estado borrador.",
         data: {},
       };
     }

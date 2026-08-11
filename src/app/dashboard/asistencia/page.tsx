@@ -4,6 +4,9 @@ import { AsistenciaManager } from "@/components/modules/asistencia/asistencia-ma
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ChartArea } from "lucide-react";
 
 interface SucursalItem {
   id: string;
@@ -88,7 +91,17 @@ export default async function AsistenciaPage() {
 
   return (
     <div className="p-2 md:pr-4">
-      <h1 className="text-2xl font-bold mb-6 font-heading">Asistencia</h1>
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold font-heading">Asistencia</h1>
+        {!esEmpleado && (
+          <Button asChild variant="outline">
+            <Link href="/dashboard/asistencia/metricas">
+              <ChartArea className="mr-2 size-4" /> Métricas y candidatos a
+              deducción
+            </Link>
+          </Button>
+        )}
+      </div>
       <AsistenciaManager
         historialInicial={historialData}
         sucursales={sucursalesData}

@@ -1,68 +1,71 @@
-import { getResumenVacaciones } from "@/actions/vacacion.actions";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { db } from "@/db/drizzle";
+import { sql } from "drizzle-orm";
 import { VacacionesManager } from "@/components/modules/vacaciones/vacaciones-manager";
 
-interface SolicitudItem {
-  solicitud: {
-    id: string;
-    empleadoId: string;
-    fechaInicio: string;
-    fechaFin: string;
-    diasHabiles: number;
-    estado: string;
-    motivoRechazo: string | null;
-    aprobadoEn: Date | null;
-    nota: string | null;
-    createdAt: Date;
-  };
-  empleadoNombre?: string;
-  empleadoApellidos?: string;
-  aprobadoPorNombre?: string;
-}
-
-interface SaldoItem {
+interface EmpleadoBasico {
   id: string;
-  empleadoId: string;
-  periodoInicio: string;
-  periodoFin: string;
-  diasOtorgados: number;
-  diasDisponibles: number;
-  diasUsados: number;
-  diasPendientes: number;
-}
-
-interface FeriadoItem {
-  id: string;
-  fecha: string;
   nombre: string;
-  tipo: string;
-  activo: boolean;
+  apellidos: string;
+  cedula: string;
+  email: string | null;
+  sucursalNombre: string | null;
+  puestoNombre: string | null;
+  fechaIngreso: string;
 }
 
-interface ResumenData {
-  solicitudes?: SolicitudItem[];
-  saldos?: SaldoItem[];
-  feriados?: FeriadoItem[];
-  esEmpleado: boolean;
-}
+type Role = "admin" | "rrhh" | "empleado";
 
 export default async function VacacionesPage() {
-  const result = await getResumenVacaciones();
-  const data = (result.data as ResumenData) || {
-    solicitudes: [],
-    saldos: [],
-    feriados: [],
-    esEmpleado: true,
-  };
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user) {
+    redirect("/login");
+  }
 
-  return (
-    <div className="p-2 pr-4">
-      {/* <h1 className="text-2xl font-bold mb-6 font-heading">Vacaciones</h1> */}
-      <VacacionesManager
-        solicitudes={data.solicitudes || []}
-        saldos={data.saldos || []}
-        feriados={data.feriados || []}
-        esEmpleado={data.esEmpleado}
-      />
-    </div>
-  );
+  const rol: Role = ((session.user.role as Role) ?? "empleado") as Role;
+
+  if (rol === "empleado") {
+    const [emp] = await db
+      .select({
+        id: sql<string>`id`,
+        nombre: sql<string>`nombre`,
+        apellidos: sql<string>`apellidos`,
+        cedula: sql<string>`cedula::text`,
+        fechaIngreso: sql<string>`fecha_ingreso::text`,
+        puestoNombre: sql<string>`(SELECT nombre FROM puesto WHERE puesto.id = empleado.puesto_id)`,
+        sucursalNombre: sql<string>`(SELECT nombre FROM sucursal WHERE sucursal.id = empleado.sucursal_id)`,
+        email: sql<string>`(SELECT email FROM "user" WHERE "user".id = empleado.user_id)`,
+      })
+      .from(sql`empleado`)
+      .where(sql`user_id = ${session.user.id}`)
+      .limit(1);
+
+    if (!emp) {
+      return (
+        <div className="p-2 pr-4">
+          <h1 className="text-2xl font-bold mb-6 font-heading">Vacaciones</h1>
+          <p className="text-muted-foreground">
+            No se encontró un perfil de empleado asociado a tu usuario.
+          </p>
+        </div>
+      );
+    }
+
+    const empleadoActual: EmpleadoBasico = {
+      id: emp.id,
+      nombre: emp.nombre,
+      apellidos: emp.apellidos,
+      cedula: emp.cedula,
+      fechaIngreso: emp.fechaIngreso,
+      puestoNombre: emp.puestoNombre ?? null,
+      sucursalNombre: emp.sucursalNombre ?? null,
+      email: emp.email ?? null,
+    };
+
+    return <VacacionesManager rol="empleado" empleadoActual={empleadoActual} />;
+  }
+
+  return <VacacionesManager rol={rol} empleadoActual={null} />;
 }
