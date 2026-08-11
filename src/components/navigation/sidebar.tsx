@@ -25,6 +25,7 @@ import {
   TreePalm,
   UserCheck,
   Wallet,
+  CalendarOff,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
@@ -71,6 +72,14 @@ function MySidebar({
   const accessVacations = authClient.admin.checkRolePermission({
     permission: {
       vacacion: ["list-own"],
+    },
+    role:
+      (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
+      "empleado",
+  });
+  const accessDaysOff = authClient.admin.checkRolePermission({
+    permission: {
+      solicitudPersonal: ["list-own"],
     },
     role:
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
@@ -207,7 +216,7 @@ function MySidebar({
 
           {accessVacations && (
             <SidebarMenuItem>
-              <TooltipShow open={open} content="Solicitudes">
+              <TooltipShow open={open} content="Vacaciones">
                 <Link href="/dashboard/vacations">
                   <Button
                     variant="ghost"
@@ -215,7 +224,24 @@ function MySidebar({
                     className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
                   >
                     <TreePalm className="size-5" />
-                    {open && <span>Solicitudes</span>}
+                    {open && <span>Vacaciones</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
+            </SidebarMenuItem>
+          )}
+
+          {accessDaysOff && (
+            <SidebarMenuItem>
+              <TooltipShow open={open} content="Días libres">
+                <Link href="/dashboard/days-off">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <CalendarOff className="size-5" />
+                    {open && <span>Días libres</span>}
                   </Button>
                 </Link>
               </TooltipShow>

@@ -1,27 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { valibotResolver } from "@hookform/resolvers/valibot";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import {
-  Plus,
-  CalendarDays,
-  CheckCircle2,
-  XCircle,
-  Clock,
   TreePalm,
-  Trash2,
+  Search,
+  CalendarDays,
+  Plus,
+  Pencil,
+  History,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  Mail,
   CalendarOff,
-  Inbox,
-  Briefcase,
-  Stethoscope,
-  Sun,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -42,16 +48,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -59,1130 +55,1164 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  solicitarVacacion,
-  aprobarRechazarVacacion,
-  crearFeriado,
-  cancelarSolicitudVacacion,
-} from "@/actions/vacacion.actions";
-import { eliminarFeriado } from "@/actions/feriados.actions";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Separator } from "@/components/ui/separator";
 import {
-  solicitarDiaPersonal,
-  aprobarRechazarSolicitudPersonal,
-} from "@/actions/asistencia.actions";
-import { SolicitarVacacionSchema, CrearFeriadoSchema } from "@/lib/validations/vacacion";
-import type { SolicitarVacacionData, CrearFeriadoData } from "@/lib/validations/vacacion";
+  getResumenSaldo,
+  getEmpleadosConSaldo,
+  getHistorialMovimientos,
+  otorgarVacacion,
+  ajustarSaldo,
+  calcularDiasHabilesAction,
+  generarBoletaVacacion,
+  reenviarBoletaEmail,
+} from "@/actions/saldo-vacacion.actions";
+import {
+  OtorgarVacacionSchema,
+  type OtorgarVacacionData,
+} from "@/lib/validations/saldo-vacacion";
+import { AjusteSaldoSchema, type AjusteSaldoData } from "@/lib/validations/saldo-vacacion";
 
-// ── Tipos unificados ─────────────────────────────────────────────────────────
-
-type TipoSolicitud = "vacacion" | "dia_libre" | "permiso" | "incapacidad";
-
-interface SolicitudVacacionItem {
-  solicitud: {
-    id: string;
-    empleadoId: string;
-    fechaInicio: string;
-    fechaFin: string;
-    diasHabiles: number;
-    estado: string;
-    motivoRechazo: string | null;
-    aprobadoEn: Date | null;
-    nota: string | null;
-    createdAt: Date;
-  };
-  empleadoNombre?: string;
-  empleadoApellidos?: string;
-  aprobadoPorNombre?: string | null;
-}
-
-interface SolicitudPersonalItem {
-  solicitud: {
-    id: string;
-    empleadoId: string;
-    tipo: TipoSolicitud;
-    fechaInicio: string;
-    fechaFin: string;
-    diasHabiles: number;
-    motivo: string | null;
-    estado: string;
-    aprobadaPor: string | null;
-    aprobadaEn: Date | null;
-    notaResolucion: string | null;
-    createdAt: Date;
-  };
-  empleadoNombre?: string;
-  empleadoApellidos?: string;
-  aprobadoPorNombre?: string | null;
-}
-
-interface SolicitudUnificada {
-  id: string;
-  origen: "vacacion" | "personal";
-  tipo: "vacacion" | "dia_libre" | "permiso" | "incapacidad";
-  fechaInicio: string;
-  fechaFin: string;
-  diasHabiles: number;
+interface EmpleadoConSaldo {
+  empleadoId: string;
+  nombre: string;
+  apellidos: string;
+  cedula: string;
+  sucursalNombre: string | null;
+  puestoNombre: string | null;
+  fechaIngreso: string;
+  diasDevengados: number;
+  totalOtorgamientos: number;
+  totalAjustesPositivos: number;
+  totalAjustesNegativos: number;
+  diasDisponibles: number;
   estado: string;
-  motivo: string | null;
-  motivoRechazo: string | null;
-  notaResolucion: string | null;
-  aprobadoPorNombre: string | null;
-  empleadoNombre: string;
-  empleadoApellidos: string;
-  createdAt: Date;
-  raw: SolicitudVacacionItem["solicitud"] | SolicitudPersonalItem["solicitud"];
 }
 
-interface SaldoItem {
+interface Movimiento {
   id: string;
   empleadoId: string;
-  periodoInicio: string;
-  periodoFin: string;
-  diasOtorgados: number;
-  diasDisponibles: number;
-  diasUsados: number;
-  diasPendientes: number;
+  tipo: "otorgamiento" | "ajuste_positivo" | "ajuste_negativo" | "devengo";
+  dias: number;
+  motivo: string;
+  realizadoPor: string;
+  realizadoPorNombre: string | null;
+  fecha: string;
+  metadata: unknown;
 }
 
-interface FeriadoItem {
+interface ResumenSaldo {
+  diasDevengados: number;
+  totalOtorgamientos: number;
+  totalAjustesPositivos: number;
+  totalAjustesNegativos: number;
+  diasDisponibles: number;
+  diasOtorgados: number;
+  diasUsados: number;
+}
+
+interface EmpleadoBasico {
   id: string;
-  fecha: string;
   nombre: string;
-  tipo: string;
-  activo: boolean;
+  apellidos: string;
+  cedula: string;
+  email: string | null;
+  sucursalNombre: string | null;
+  puestoNombre: string | null;
+  fechaIngreso: string;
 }
 
 interface VacacionesManagerProps {
-  vacaciones: SolicitudVacacionItem[];
-  personales: SolicitudPersonalItem[];
-  saldos: SaldoItem[];
-  feriados: FeriadoItem[];
-  esEmpleado: boolean;
+  rol: "admin" | "rrhh" | "empleado";
+  empleadoActual: EmpleadoBasico | null;
 }
 
-type Tab = "solicitudes" | "feriados";
-type FiltroTipo = "todas" | "vacacion" | "dia_libre" | "permiso" | "incapacidad";
-
-const TIPO_LABEL: Record<TipoSolicitud, string> = {
-  vacacion: "Vacación",
-  dia_libre: "Día libre",
-  permiso: "Permiso",
-  incapacidad: "Incapacidad",
+const TIPO_LABELS: Record<Movimiento["tipo"], string> = {
+  otorgamiento: "Otorgamiento",
+  ajuste_positivo: "Ajuste (+)",
+  ajuste_negativo: "Ajuste (−)",
+  devengo: "Devengo",
 };
 
-const TIPO_ICON: Record<TipoSolicitud, React.ComponentType<{ className?: string }>> = {
-  vacacion: TreePalm,
-  dia_libre: Sun,
-  permiso: Briefcase,
-  incapacidad: Stethoscope,
+const TIPO_VARIANT: Record<
+  Movimiento["tipo"],
+  "default" | "secondary" | "destructive" | "outline"
+> = {
+  otorgamiento: "default",
+  ajuste_positivo: "secondary",
+  ajuste_negativo: "destructive",
+  devengo: "outline",
 };
 
-const TIPO_VARIANT: Record<TipoSolicitud, "default" | "secondary" | "outline" | "destructive"> = {
-  vacacion: "default",
-  dia_libre: "secondary",
-  permiso: "outline",
-  incapacidad: "destructive",
-};
-
-function unificar(
-  vacaciones: SolicitudVacacionItem[],
-  personales: SolicitudPersonalItem[],
-): SolicitudUnificada[] {
-  const map = new Map<string, SolicitudUnificada>();
-
-  for (const v of vacaciones) {
-    const key = `v-${v.solicitud.id}`;
-    map.set(key, {
-      id: v.solicitud.id,
-      origen: "vacacion",
-      tipo: "vacacion",
-      fechaInicio: v.solicitud.fechaInicio,
-      fechaFin: v.solicitud.fechaFin,
-      diasHabiles: v.solicitud.diasHabiles,
-      estado: v.solicitud.estado,
-      motivo: v.solicitud.nota,
-      motivoRechazo: v.solicitud.motivoRechazo,
-      notaResolucion: null,
-      aprobadoPorNombre: v.aprobadoPorNombre ?? null,
-      empleadoNombre: v.empleadoNombre ?? "",
-      empleadoApellidos: v.empleadoApellidos ?? "",
-      createdAt: v.solicitud.createdAt,
-      raw: v.solicitud,
-    });
-  }
-
-  for (const p of personales) {
-    const key = `p-${p.solicitud.id}`;
-    map.set(key, {
-      id: p.solicitud.id,
-      origen: "personal",
-      tipo: p.solicitud.tipo,
-      fechaInicio: p.solicitud.fechaInicio,
-      fechaFin: p.solicitud.fechaFin,
-      diasHabiles: p.solicitud.diasHabiles,
-      estado: p.solicitud.estado,
-      motivo: p.solicitud.motivo,
-      motivoRechazo: null,
-      notaResolucion: p.solicitud.notaResolucion,
-      aprobadoPorNombre: p.aprobadoPorNombre ?? null,
-      empleadoNombre: p.empleadoNombre ?? "",
-      empleadoApellidos: p.empleadoApellidos ?? "",
-      createdAt: p.solicitud.createdAt,
-      raw: p.solicitud,
-    });
-  }
-
-  return Array.from(map.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+function getTipoLabel(tipo: string): string {
+  return TIPO_LABELS[tipo as Movimiento["tipo"]] ?? tipo;
 }
 
-function EstadoBadge({ estado }: { estado: string }) {
-  const config: Record<string, { label: string; variant: "default" | "secondary" | "destructive"; className: string }> = {
-    pendiente: {
-      label: "Pendiente",
-      variant: "secondary",
-      className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-    },
-    aprobada: {
-      label: "Aprobada",
-      variant: "default",
-      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-    },
-    rechazada: {
-      label: "Rechazada",
-      variant: "destructive",
-      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-    },
-    cancelada: {
-      label: "Cancelada",
-      variant: "secondary",
-      className: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-    },
-  };
-
-  const c = config[estado] || config.pendiente;
-
-  return (
-    <Badge variant={c.variant} className={c.className}>
-      {c.label}
-    </Badge>
-  );
+function getTipoVariant(
+  tipo: string,
+): "default" | "secondary" | "destructive" | "outline" {
+  return TIPO_VARIANT[tipo as Movimiento["tipo"]] ?? "outline";
 }
 
-function TipoBadge({ tipo }: { tipo: TipoSolicitud }) {
-  const Icon = TIPO_ICON[tipo];
-  return (
-    <Badge variant={TIPO_VARIANT[tipo]} className="gap-1 capitalize">
-      <Icon className="size-3" />
-      {TIPO_LABEL[tipo]}
-    </Badge>
-  );
-}
-
-export function VacacionesManager({
-  vacaciones,
-  personales,
-  saldos,
-  feriados,
-  esEmpleado,
-}: VacacionesManagerProps) {
-  const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("solicitudes");
-  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>("todas");
-  const [filtroEstado, setFiltroEstado] = useState<string>("todos");
-  const [isRequestOpen, setIsRequestOpen] = useState(false);
-  const [isFeriadoOpen, setIsFeriadoOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [aprobarTarget, setAprobarTarget] = useState<SolicitudUnificada | null>(null);
-  const [rechazarTarget, setRechazarTarget] = useState<SolicitudUnificada | null>(null);
-  const [cancelarTarget, setCancelarTarget] = useState<SolicitudUnificada | null>(null);
-  const [eliminarFeriadoTarget, setEliminarFeriadoTarget] = useState<FeriadoItem | null>(null);
-  const [motivoRechazo, setMotivoRechazo] = useState("");
-
-  const saldoActual = saldos[0];
-
-  const solicitudes = useMemo(
-    () => unificar(vacaciones, personales),
-    [vacaciones, personales],
-  );
-
-  const solicitudesFiltradas = solicitudes.filter((s) => {
-    if (filtroTipo !== "todas" && s.tipo !== filtroTipo) return false;
-    if (filtroEstado === "todos") return true;
-    if (filtroEstado === "pendientes") return s.estado === "pendiente";
-    return s.estado === filtroEstado;
-  });
-
-  // Totales para el encabezado (empleado)
-  const totalesEmpleado = useMemo(() => {
-    return {
-      pendientes: solicitudes.filter((s) => s.estado === "pendiente").length,
-      aprobadas: solicitudes.filter((s) => s.estado === "aprobada").length,
-      rechazadas: solicitudes.filter((s) => s.estado === "rechazada").length,
-    };
-  }, [solicitudes]);
-
-  const requestForm = useForm<SolicitarVacacionData>({
-    resolver: valibotResolver(SolicitarVacacionSchema),
-    defaultValues: {
-      fechaInicio: "",
-      fechaFin: "",
-      nota: undefined,
-    },
-  });
-
-  const feriadoForm = useForm({
-    resolver: valibotResolver(CrearFeriadoSchema),
-    defaultValues: {
-      fecha: "",
-      nombre: "",
-      tipo: "nacional",
-    } as CrearFeriadoData,
-  });
-
-  async function handleAprobar() {
-    if (!aprobarTarget) return;
-    setIsSubmitting(true);
-    const res =
-      aprobarTarget.origen === "vacacion"
-        ? await aprobarRechazarVacacion({
-            solicitudId: aprobarTarget.id,
-            accion: "aprobar",
-          })
-        : await aprobarRechazarSolicitudPersonal({
-            solicitudId: aprobarTarget.id,
-            accion: "aprobar",
-            notaResolucion: motivoRechazo || undefined,
-          });
-    if (res.success) {
-      toast.success("Aprobada", { description: res.message });
-      setAprobarTarget(null);
-      setMotivoRechazo("");
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
+function fmtFecha(s: string) {
+  if (!s) return "—";
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${d}/${m}/${y}`;
   }
-
-  async function handleRechazar() {
-    if (!rechazarTarget) return;
-    setIsSubmitting(true);
-    const res =
-      rechazarTarget.origen === "vacacion"
-        ? await aprobarRechazarVacacion({
-            solicitudId: rechazarTarget.id,
-            accion: "rechazar",
-            motivoRechazo: motivoRechazo || undefined,
-          })
-        : await aprobarRechazarSolicitudPersonal({
-            solicitudId: rechazarTarget.id,
-            accion: "rechazar",
-            notaResolucion: motivoRechazo || undefined,
-          });
-    if (res.success) {
-      toast.success("Rechazada", { description: res.message });
-      setRechazarTarget(null);
-      setMotivoRechazo("");
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
-  }
-
-  async function handleCancelar() {
-    if (!cancelarTarget) return;
-    setIsSubmitting(true);
-    const res =
-      cancelarTarget.origen === "vacacion"
-        ? await cancelarSolicitudVacacion(cancelarTarget.id)
-        : // Para solicitudes personales, no hay acción de cancelar explícita
-          // se actualiza a cancelada directamente vía aprobarRechazarSolicitudPersonal
-          // con una acción "cancelar" alternativa. En MVP simplemente se informa.
-          {
-            success: false,
-            message: "Para cancelar solicitudes personales, RRHH debe rechazarla.",
-            data: {},
-          };
-    if (res.success) {
-      toast.success("Cancelada", { description: res.message });
-      setCancelarTarget(null);
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
-  }
-
-  async function handleCrearFeriado(data: Record<string, unknown>) {
-    const payload = data as CrearFeriadoData;
-    setIsSubmitting(true);
-    const res = await crearFeriado(payload);
-    if (res.success) {
-      toast.success("Feriado creado", { description: res.message });
-      setIsFeriadoOpen(false);
-      feriadoForm.reset();
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
-  }
-
-  async function handleEliminarFeriado() {
-    if (!eliminarFeriadoTarget) return;
-    setIsSubmitting(true);
-    const res = await eliminarFeriado(eliminarFeriadoTarget.id);
-    if (res.success) {
-      toast.success("Feriado eliminado", { description: res.message });
-      setEliminarFeriadoTarget(null);
-      router.refresh();
-    } else {
-      toast.error("Error", { description: res.message });
-    }
-    setIsSubmitting(false);
-  }
-
-  function formatDate(date: string | Date): string {
-    const d = typeof date === "string" ? new Date(date + "T00:00:00") : date;
-    return d.toLocaleDateString("es-CR", {
-      day: "2-digit",
-      month: "2-digit",
+  try {
+    return new Date(s).toLocaleDateString("es-CR", {
       year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
+  } catch {
+    return s;
+  }
+}
+
+function fmtFechaHora(s: string) {
+  if (!s) return "—";
+  try {
+    return new Date(s).toLocaleString("es-CR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return s;
+  }
+}
+
+export function VacacionesManager({ rol, empleadoActual }: VacacionesManagerProps) {
+  const esAdmin = rol === "admin" || rol === "rrhh";
+
+  const [empleados, setEmpleados] = useState<EmpleadoConSaldo[]>([]);
+  const [resumenPropio, setResumenPropio] = useState<ResumenSaldo | null>(null);
+  const [movimientosPropios, setMovimientosPropios] = useState<Movimiento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+
+  const [otorgarOpen, setOtorgarOpen] = useState(false);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
+  const [empleadoSelOtorgar, setEmpleadoSelOtorgar] = useState<EmpleadoConSaldo | null>(null);
+  const [empleadoSelHistorial, setEmpleadoSelHistorial] = useState<EmpleadoConSaldo | null>(null);
+  const [historialEmpleado, setHistorialEmpleado] = useState<Movimiento[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+
+  async function loadData() {
+    setLoading(true);
+    if (esAdmin) {
+      const res = await getEmpleadosConSaldo({
+        busqueda: busqueda || undefined,
+      });
+      if (res.success) {
+        setEmpleados((res.data as { empleados: EmpleadoConSaldo[] }).empleados);
+      }
+    } else if (empleadoActual) {
+      const resResumen = await getResumenSaldo({ empleadoId: empleadoActual.id });
+      if (resResumen.success) {
+        const data = resResumen.data as {
+          resumen: ResumenSaldo;
+          empleado: EmpleadoBasico | null;
+        };
+        setResumenPropio(data.resumen);
+      }
+      const resMov = await getHistorialMovimientos({ empleadoId: empleadoActual.id });
+      if (resMov.success) {
+        setMovimientosPropios(
+          (resMov.data as { movimientos: Movimiento[] }).movimientos,
+        );
+      }
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rol, empleadoActual?.id]);
+
+  useEffect(() => {
+    if (!esAdmin) return;
+    const t = setTimeout(() => {
+      loadData();
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda]);
+
+  async function cargarHistorial(emp: EmpleadoConSaldo) {
+    setEmpleadoSelHistorial(emp);
+    setLoadingHistorial(true);
+    const res = await getHistorialMovimientos({ empleadoId: emp.empleadoId });
+    if (res.success) {
+      setHistorialEmpleado(
+        (res.data as { movimientos: Movimiento[] }).movimientos,
+      );
+    }
+    setLoadingHistorial(false);
+  }
+
+  const empleadosFiltrados = useMemo(() => {
+    if (!busqueda) return empleados;
+    const b = busqueda.toLowerCase();
+    return empleados.filter(
+      (e) =>
+        `${e.nombre} ${e.apellidos}`.toLowerCase().includes(b) ||
+        e.cedula.toLowerCase().includes(b),
+    );
+  }, [empleados, busqueda]);
+
+  if (!esAdmin && !empleadoActual) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground">
+            No se encontró un perfil de empleado asociado.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <>
-      {esEmpleado && (
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardContent className="">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-                  <TreePalm className="size-5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Días disponibles</p>
-                  <p className="text-2xl font-bold">
-                    {saldoActual?.diasDisponibles || "0"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                  <Clock className="size-5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold">{totalesEmpleado.pendientes}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                  <CheckCircle2 className="size-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Aprobadas</p>
-                  <p className="text-2xl font-bold">{totalesEmpleado.aprobadas}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-                  <CalendarDays className="size-5 text-gray-600 dark:text-gray-400" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Días usados</p>
-                  <p className="text-2xl font-bold">
-                    {saldoActual?.diasUsados || "0"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+    <div className="space-y-6">
+      {esAdmin ? (
+        <VistaAdmin
+          empleados={empleadosFiltrados}
+          loading={loading}
+          busqueda={busqueda}
+          setBusqueda={setBusqueda}
+          onOtorgar={() => {
+            setEmpleadoSelOtorgar(null);
+            setOtorgarOpen(true);
+          }}
+          onAjustar={(emp) => {
+            setEmpleadoSelOtorgar(emp);
+            setAjusteOpen(true);
+          }}
+          onVerHistorial={cargarHistorial}
+          onOtorgarEmpleado={(emp) => {
+            setEmpleadoSelOtorgar(emp);
+            setOtorgarOpen(true);
+          }}
+        />
+      ) : (
+        <VistaEmpleado
+          empleado={empleadoActual!}
+          resumen={resumenPropio}
+          movimientos={movimientosPropios}
+          loading={loading}
+        />
       )}
 
-      {esEmpleado && saldoActual && (
-        <p className="text-sm text-muted-foreground mb-4">
-          Período: {formatDate(saldoActual.periodoInicio)} —{" "}
-          {formatDate(saldoActual.periodoFin)} | Otorgados:{" "}
-          {saldoActual.diasOtorgados}
-        </p>
-      )}
-
-      {!esEmpleado && (
-        <div className="flex items-center gap-2 mb-4">
-          <Button
-            variant={activeTab === "solicitudes" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("solicitudes")}
-          >
-            <Inbox className="size-4" />
-            Solicitudes
-            {solicitudes.filter((s) => s.estado === "pendiente").length > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {solicitudes.filter((s) => s.estado === "pendiente").length}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant={activeTab === "feriados" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setActiveTab("feriados")}
-          >
-            <CalendarOff className="size-4" />
-            Feriados
-          </Button>
-        </div>
-      )}
-
-      {activeTab === "solicitudes" && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <Select
-                  value={filtroTipo}
-                  onValueChange={(v) => setFiltroTipo(v as FiltroTipo)}
-                >
-                  <SelectTrigger className="w-45">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todos los tipos</SelectItem>
-                    <SelectItem value="vacacion">Vacaciones</SelectItem>
-                    <SelectItem value="dia_libre">Días libres</SelectItem>
-                    <SelectItem value="permiso">Permisos</SelectItem>
-                    <SelectItem value="incapacidad">Incapacidades</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-                  <SelectTrigger className="w-45">
-                    <SelectValue placeholder="Estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los estados</SelectItem>
-                    <SelectItem value="pendientes">Pendientes</SelectItem>
-                    <SelectItem value="aprobada">Aprobadas</SelectItem>
-                    <SelectItem value="rechazada">Rechazadas</SelectItem>
-                    <SelectItem value="cancelada">Canceladas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {esEmpleado && (
-                <Button onClick={() => setIsRequestOpen(true)}>
-                  <Plus />
-                  Nueva solicitud
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  {!esEmpleado && <TableHead>Empleado</TableHead>}
-                  <TableHead>Desde</TableHead>
-                  <TableHead>Hasta</TableHead>
-                  <TableHead>Días hábiles</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Motivo</TableHead>
-                  {!esEmpleado && <TableHead>Resuelta por</TableHead>}
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {solicitudesFiltradas.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={esEmpleado ? 7 : 9}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      No se encontraron solicitudes.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  solicitudesFiltradas.map((item) => (
-                    <TableRow key={`${item.origen}-${item.id}`}>
-                      <TableCell>
-                        <TipoBadge tipo={item.tipo} />
-                      </TableCell>
-                      {!esEmpleado && (
-                        <TableCell className="font-medium">
-                          {item.empleadoNombre} {item.empleadoApellidos}
-                        </TableCell>
-                      )}
-                      <TableCell>{formatDate(item.fechaInicio)}</TableCell>
-                      <TableCell>{formatDate(item.fechaFin)}</TableCell>
-                      <TableCell>{item.diasHabiles}</TableCell>
-                      <TableCell>
-                        <EstadoBadge estado={item.estado} />
-                      </TableCell>
-                      <TableCell className="max-w-50 truncate text-xs text-muted-foreground">
-                        {item.motivoRechazo
-                          ? `Rechazo: ${item.motivoRechazo}`
-                          : item.notaResolucion
-                            ? `Resolución: ${item.notaResolucion}`
-                            : item.motivo ?? "—"}
-                      </TableCell>
-                      {!esEmpleado && (
-                        <TableCell>{item.aprobadoPorNombre || "—"}</TableCell>
-                      )}
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {!esEmpleado && item.estado === "pendiente" && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                title="Aprobar"
-                                onClick={() => setAprobarTarget(item)}
-                              >
-                                <CheckCircle2 className="size-4 text-emerald-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                title="Rechazar"
-                                onClick={() => setRechazarTarget(item)}
-                              >
-                                <XCircle className="size-4 text-red-500" />
-                              </Button>
-                            </>
-                          )}
-                          {esEmpleado &&
-                            item.origen === "vacacion" &&
-                            item.estado === "pendiente" && (
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                title="Cancelar"
-                                onClick={() => setCancelarTarget(item)}
-                              >
-                                <XCircle className="size-4 text-muted-foreground" />
-                              </Button>
-                            )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {activeTab === "feriados" && !esEmpleado && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Feriados</CardTitle>
-              <Button onClick={() => setIsFeriadoOpen(true)}>
-                <Plus />
-                Nuevo Feriado
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {feriados.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={5}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      No hay feriados registrados.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  feriados.map((f) => (
-                    <TableRow key={f.id}>
-                      <TableCell>{formatDate(f.fecha)}</TableCell>
-                      <TableCell className="font-medium">{f.nombre}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="capitalize">
-                          {f.tipo}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={f.activo ? "default" : "secondary"}
-                          className={
-                            f.activo
-                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                              : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                          }
-                        >
-                          {f.activo ? "activo" : "inactivo"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => setEliminarFeriadoTarget(f)}
-                        >
-                          <Trash2 className="size-4 text-muted-foreground" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      <SolicitudDialog
-        open={isRequestOpen}
-        onOpenChange={setIsRequestOpen}
-        form={requestForm}
-        isSubmitting={isSubmitting}
-        onSubmitVacacion={async (data) => {
-          const res = await solicitarVacacion(data);
-          if (res.success) {
-            toast.success("Solicitud enviada", { description: res.message });
-            setIsRequestOpen(false);
-            requestForm.reset();
-            router.refresh();
-          } else {
-            toast.error("Error", { description: res.message });
-          }
+      <OtorgarVacacionDialog
+        open={otorgarOpen}
+        empleado={empleadoSelOtorgar}
+        onOpenChange={(o) => {
+          setOtorgarOpen(o);
+          if (!o) setEmpleadoSelOtorgar(null);
         }}
-        onSubmitPersonal={async (payload) => {
-          const res = await solicitarDiaPersonal(payload);
-          if (res.success) {
-            toast.success("Solicitud enviada", { description: res.message });
-            setIsRequestOpen(false);
-            requestForm.reset();
-            router.refresh();
-          } else {
-            toast.error("Error", { description: res.message });
-          }
+        onSuccess={() => {
+          setOtorgarOpen(false);
+          setEmpleadoSelOtorgar(null);
+          loadData();
+          if (empleadoSelHistorial) cargarHistorial(empleadoSelHistorial);
         }}
       />
 
-      <Dialog open={isFeriadoOpen} onOpenChange={setIsFeriadoOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nuevo Feriado</DialogTitle>
-            <DialogDescription>
-              Agregá un feriado al calendario. Se excluyen del cálculo de días hábiles.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={feriadoForm.handleSubmit(handleCrearFeriado)}>
-            <FieldGroup>
-              <Controller
-                name="fecha"
-                control={feriadoForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="feriado-fecha">Fecha</FieldLabel>
-                    <Input
-                      id="feriado-fecha"
-                      type="date"
-                      required
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </Field>
-                )}
-              />
-              <Controller
-                name="nombre"
-                control={feriadoForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="feriado-nombre">Nombre</FieldLabel>
-                    <Input
-                      id="feriado-nombre"
-                      type="text"
-                      placeholder="Nombre del feriado"
-                      required
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                    />
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </Field>
-                )}
-              />
-              <Controller
-                name="tipo"
-                control={feriadoForm.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor="feriado-tipo">Tipo</FieldLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger
-                        id="feriado-tipo"
-                        aria-invalid={fieldState.invalid}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="nacional">Nacional</SelectItem>
-                        <SelectItem value="religioso">Religioso</SelectItem>
-                        <SelectItem value="opcional">Opcional</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {fieldState.error && (
-                      <p className="text-destructive text-sm">
-                        {fieldState.error.message}
-                      </p>
-                    )}
-                  </Field>
-                )}
-              />
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsFeriadoOpen(false)}
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Creando..." : "Crear Feriado"}
-                </Button>
-              </DialogFooter>
-            </FieldGroup>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog
-        open={!!aprobarTarget}
-        onOpenChange={(open) => !open && setAprobarTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Aprobar solicitud</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Aprobar la solicitud de{" "}
-              <strong>{TIPO_LABEL[aprobarTarget?.tipo ?? "vacacion"]}</strong> de{" "}
-              {aprobarTarget?.empleadoNombre} {aprobarTarget?.empleadoApellidos} del{" "}
-              {aprobarTarget && formatDate(aprobarTarget.fechaInicio)} al{" "}
-              {aprobarTarget && formatDate(aprobarTarget.fechaFin)} (
-              {aprobarTarget?.diasHabiles} días hábiles)?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleAprobar} disabled={isSubmitting}>
-              {isSubmitting ? "Procesando..." : "Aprobar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog
-        open={!!rechazarTarget}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRechazarTarget(null);
-            setMotivoRechazo("");
-          }
+      <AjustarSaldoDialog
+        open={ajusteOpen}
+        empleado={empleadoSelOtorgar}
+        onOpenChange={(o) => {
+          setAjusteOpen(o);
+          if (!o) setEmpleadoSelOtorgar(null);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rechazar solicitud</DialogTitle>
-            <DialogDescription>
-              Vas a rechazar la solicitud de{" "}
-              <strong>{TIPO_LABEL[rechazarTarget?.tipo ?? "vacacion"]}</strong> de{" "}
-              {rechazarTarget?.empleadoNombre} {rechazarTarget?.empleadoApellidos} (
-              {rechazarTarget?.diasHabiles} días hábiles).
-            </DialogDescription>
-          </DialogHeader>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="motivo-rechazo">Motivo del rechazo</FieldLabel>
-              <Textarea
-                id="motivo-rechazo"
-                placeholder="Explicá por qué se rechaza..."
-                value={motivoRechazo}
-                onChange={(e) => setMotivoRechazo(e.target.value)}
+        onSuccess={() => {
+          setAjusteOpen(false);
+          setEmpleadoSelOtorgar(null);
+          loadData();
+        }}
+      />
+
+      <HistorialSheet
+        open={!!empleadoSelHistorial}
+        onOpenChange={(o) => {
+          if (!o) setEmpleadoSelHistorial(null);
+        }}
+        empleado={empleadoSelHistorial}
+        movimientos={historialEmpleado}
+        loading={loadingHistorial}
+        esAdmin={esAdmin}
+        onMovimientoChange={() => {
+          if (empleadoSelHistorial) cargarHistorial(empleadoSelHistorial);
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Vista Admin ───────────────────────────────────────────────────────────────
+
+function VistaAdmin({
+  empleados,
+  loading,
+  busqueda,
+  setBusqueda,
+  onOtorgar,
+  onAjustar,
+  onVerHistorial,
+  onOtorgarEmpleado,
+}: {
+  empleados: EmpleadoConSaldo[];
+  loading: boolean;
+  busqueda: string;
+  setBusqueda: (s: string) => void;
+  onOtorgar: () => void;
+  onAjustar: (emp: EmpleadoConSaldo) => void;
+  onVerHistorial: (emp: EmpleadoConSaldo) => void;
+  onOtorgarEmpleado: (emp: EmpleadoConSaldo) => void;
+}) {
+  const totalEmpleados = empleados.length;
+  const totalDisponibles = empleados.reduce((acc, e) => acc + e.diasDisponibles, 0);
+  const totalDevengados = empleados.reduce((acc, e) => acc + e.diasDevengados, 0);
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold font-heading">Vacaciones</h1>
+          <p className="text-muted-foreground text-sm">
+            Gestioná los saldos de vacaciones de tus empleados.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={onOtorgar}>
+            <Plus className="size-4" />
+            Otorgar vacaciones
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Empleados activos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Users className="size-5 text-muted-foreground" />
+              <span className="text-2xl font-bold">{totalEmpleados}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total devengado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-5 text-blue-600" />
+              <span className="text-2xl font-bold">{totalDevengados}</span>
+              <span className="text-sm text-muted-foreground">días</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total disponible
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <TreePalm className="size-5 text-emerald-600" />
+              <span className="text-2xl font-bold">{totalDisponibles}</span>
+              <span className="text-sm text-muted-foreground">días</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle>Saldos por empleado</CardTitle>
+              <CardDescription>
+                Hacé clic en una fila para ver el historial completo.
+              </CardDescription>
+            </div>
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre o cédula..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                className="pl-8"
               />
-            </Field>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setRechazarTarget(null);
-                  setMotivoRechazo("");
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={handleRechazar}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Procesando..." : "Rechazar"}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog
-        open={!!cancelarTarget}
-        onOpenChange={(open) => !open && setCancelarTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar solicitud</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Cancelar tu solicitud de{" "}
-              <strong>{TIPO_LABEL[cancelarTarget?.tipo ?? "vacacion"]}</strong> del{" "}
-              {cancelarTarget && formatDate(cancelarTarget.fechaInicio)} al{" "}
-              {cancelarTarget && formatDate(cancelarTarget.fechaFin)}?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>No, mantener</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancelar} disabled={isSubmitting}>
-              {isSubmitting ? "Procesando..." : "Sí, cancelar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={!!eliminarFeriadoTarget}
-        onOpenChange={(open) => !open && setEliminarFeriadoTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar Feriado</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Eliminar el feriado &quot;{eliminarFeriadoTarget?.nombre}&quot; del{" "}
-              {eliminarFeriadoTarget && formatDate(eliminarFeriadoTarget.fecha)}?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleEliminarFeriado}
-              disabled={isSubmitting}
-              variant="destructive"
-            >
-              {isSubmitting ? "Eliminando..." : "Eliminar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">Cargando...</div>
+          ) : empleados.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay empleados para mostrar.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empleado</TableHead>
+                  <TableHead>Sucursal</TableHead>
+                  <TableHead className="text-right">Devengados</TableHead>
+                  <TableHead className="text-right">Otorgados</TableHead>
+                  <TableHead className="text-right">Ajustes +/-</TableHead>
+                  <TableHead className="text-right">Disponibles</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {empleados.map((emp) => (
+                  <TableRow key={emp.empleadoId}>
+                    <TableCell>
+                      <div className="font-medium">
+                        {emp.nombre} {emp.apellidos}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {emp.cedula} · Ingreso {fmtFecha(emp.fechaIngreso)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {emp.sucursalNombre ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {emp.diasDevengados}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {Math.abs(emp.totalOtorgamientos)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span className="text-emerald-600">
+                        +{emp.totalAjustesPositivos}
+                      </span>
+                      {" / "}
+                      <span className="text-red-600">
+                        {emp.totalAjustesNegativos}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge
+                        variant={
+                          emp.diasDisponibles <= 0
+                            ? "destructive"
+                            : emp.diasDisponibles <= 5
+                              ? "secondary"
+                              : "default"
+                        }
+                        className="tabular-nums"
+                      >
+                        {emp.diasDisponibles}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => onOtorgarEmpleado(emp)}
+                          title="Otorgar vacaciones"
+                        >
+                          <Plus className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => onAjustar(emp)}
+                          title="Ajustar saldo"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => onVerHistorial(emp)}
+                          title="Ver historial"
+                        >
+                          <History className="size-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }
 
-// ── Diálogo unificado de nueva solicitud ────────────────────────────────────
+// ── Vista Empleado ────────────────────────────────────────────────────────────
 
-interface SolicitudDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  form: ReturnType<typeof useForm<SolicitarVacacionData>>;
-  isSubmitting: boolean;
-  onSubmitVacacion: (data: SolicitarVacacionData) => Promise<void>;
-  onSubmitPersonal: (data: {
-    tipo: "dia_libre" | "permiso" | "incapacidad";
-    fechaInicio: string;
-    fechaFin: string;
-    motivo: string | undefined;
-  }) => Promise<void>;
+function VistaEmpleado({
+  empleado,
+  resumen,
+  movimientos,
+  loading,
+}: {
+  empleado: EmpleadoBasico;
+  resumen: ResumenSaldo | null;
+  movimientos: Movimiento[];
+  loading: boolean;
+}) {
+  return (
+    <>
+      <div>
+        <h1 className="text-2xl font-bold font-heading">Mis vacaciones</h1>
+        <p className="text-muted-foreground text-sm">
+          {empleado.nombre} {empleado.apellidos} · {empleado.puestoNombre ?? "—"}
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Días devengados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-5 text-blue-600" />
+              <span className="text-3xl font-bold tabular-nums">
+                {resumen?.diasDevengados ?? 0}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              1 por cada mes desde tu ingreso (
+              {fmtFecha(empleado.fechaIngreso)}).
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Días otorgados
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <CalendarOff className="size-5 text-amber-600" />
+              <span className="text-3xl font-bold tabular-nums">
+                {resumen?.diasUsados ?? 0}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Días que ya tomaste.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Ajustes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <TrendingUp className="size-4 text-emerald-600" />
+                <span className="text-lg font-semibold tabular-nums">
+                  {resumen?.totalAjustesPositivos ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <TrendingDown className="size-4 text-red-600" />
+                <span className="text-lg font-semibold tabular-nums">
+                  {resumen?.totalAjustesNegativos ?? 0}
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Cambios aplicados por RRHH.
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
+              Saldo disponible
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <TreePalm className="size-5 text-emerald-600" />
+              <span className="text-3xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                {resumen?.diasDisponibles ?? 0}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Días que podés tomar.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Historial de movimientos</CardTitle>
+          <CardDescription>
+            Todos los cambios registrados sobre tu saldo de vacaciones.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="text-center py-8 text-muted-foreground">Cargando...</div>
+          ) : movimientos.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No hay movimientos registrados todavía.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Días</TableHead>
+                  <TableHead>Motivo</TableHead>
+                  <TableHead>Por</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {movimientos.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="text-sm">
+                      {fmtFechaHora(m.fecha)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getTipoVariant(m.tipo)}>
+                        {getTipoLabel(m.tipo)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span
+                        className={
+                          m.dias > 0
+                            ? "text-emerald-600 font-medium"
+                            : "text-red-600 font-medium"
+                        }
+                      >
+                        {m.dias > 0 ? "+" : ""}
+                        {m.dias}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm">{m.motivo}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {m.realizadoPorNombre ?? "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
 }
 
-function SolicitudDialog({
-  open,
-  onOpenChange,
-  form,
-  isSubmitting,
-  onSubmitVacacion,
-  onSubmitPersonal,
-}: SolicitudDialogProps) {
-  const [tipo, setTipo] = useState<TipoSolicitud>("vacacion");
+// ── Otorgar Vacacion Dialog ──────────────────────────────────────────────────
 
-  const enviar = form.handleSubmit(async (data) => {
-    if (tipo === "vacacion") {
-      await onSubmitVacacion(data);
-    } else {
-      await onSubmitPersonal({
-        tipo: tipo as "dia_libre" | "permiso" | "incapacidad",
-        fechaInicio: data.fechaInicio,
-        fechaFin: data.fechaFin,
-        motivo: data.nota,
-      });
-    }
+function OtorgarVacacionDialog({
+  open,
+  empleado,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  empleado: EmpleadoConSaldo | null;
+  onOpenChange: (o: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [diasCalculados, setDiasCalculados] = useState<number | null>(null);
+
+  const form = useForm<OtorgarVacacionData>({
+    resolver: valibotResolver(OtorgarVacacionSchema),
+    defaultValues: {
+      empleadoId: empleado?.empleadoId ?? "",
+      fechaInicio: "",
+      fechaFin: "",
+      motivo: "",
+      enviarNotificacion: true,
+    },
   });
 
-  const Icon = TIPO_ICON[tipo];
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        empleadoId: empleado?.empleadoId ?? "",
+        fechaInicio: "",
+        fechaFin: "",
+        motivo: "",
+        enviarNotificacion: true,
+      });
+      setDiasCalculados(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, empleado?.empleadoId]);
+
+  const fechaInicio = form.watch("fechaInicio");
+  const fechaFin = form.watch("fechaFin");
+
+  useEffect(() => {
+    if (fechaInicio && fechaFin && fechaFin >= fechaInicio) {
+      calcularDiasHabilesAction({ fechaInicio, fechaFin }).then((res) => {
+        if (res.success) {
+          setDiasCalculados((res.data as { dias: number }).dias);
+        }
+      });
+    } else {
+      setDiasCalculados(null);
+    }
+  }, [fechaInicio, fechaFin]);
+
+  const onSubmit = async (data: OtorgarVacacionData) => {
+    setSubmitting(true);
+    const res = await otorgarVacacion(data);
+    setSubmitting(false);
+    if (res.success) {
+      toast.success(res.message);
+      onSuccess();
+    } else {
+      toast.error(res.message);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon className="size-4" /> Nueva solicitud
-          </DialogTitle>
+          <DialogTitle>Otorgar vacaciones</DialogTitle>
           <DialogDescription>
-            RRHH recibirá tu solicitud y la aprobará o rechazará. Las vacaciones
-            consumen tu saldo disponible; los demás tipos no.
+            {empleado
+              ? `Otorgar vacaciones a ${empleado.nombre} ${empleado.apellidos} (saldo actual: ${empleado.diasDisponibles} días).`
+              : "Elegí un empleado y registrá las vacaciones."}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={enviar}>
-          <FieldGroup>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+        >
+          {!empleado && (
             <Field>
-              <FieldLabel>Tipo de solicitud</FieldLabel>
-              <Select
-                value={tipo}
-                onValueChange={(v) => setTipo(v as TipoSolicitud)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vacacion">
-                    <div className="flex items-center gap-2">
-                      <TreePalm className="size-4" /> Vacación
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="dia_libre">
-                    <div className="flex items-center gap-2">
-                      <Sun className="size-4" /> Día libre
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="permiso">
-                    <div className="flex items-center gap-2">
-                      <Briefcase className="size-4" /> Permiso
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="incapacidad">
-                    <div className="flex items-center gap-2">
-                      <Stethoscope className="size-4" /> Incapacidad
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <FieldLabel>Empleado</FieldLabel>
+              <Controller
+                control={form.control}
+                name="empleadoId"
+                render={({ field }) => (
+                  <EmpleadoSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
+                )}
+              />
             </Field>
-            <Controller
-              name="fechaInicio"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor="req-fecha-inicio">Fecha inicio</FieldLabel>
-                  <Input
-                    id="req-fecha-inicio"
-                    type="date"
-                    required
-                    {...field}
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </Field>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <Field>
+              <FieldLabel>Desde</FieldLabel>
+              <Input type="date" {...form.register("fechaInicio")} />
+            </Field>
+            <Field>
+              <FieldLabel>Hasta</FieldLabel>
+              <Input type="date" {...form.register("fechaFin")} />
+            </Field>
+          </div>
+          {diasCalculados !== null ? (
+            <div
+              className={`rounded-md border px-3 py-2 text-sm ${
+                empleado && diasCalculados > empleado.diasDisponibles
+                  ? "border-red-300 bg-red-50 text-red-800"
+                  : "border-border bg-muted/40"
+              }`}
+            >
+              <span className="font-medium">{diasCalculados} día(s) hábiles</span>
+              <span className="text-muted-foreground">
+                {" "}
+                — calculado automáticamente (excluye S-D y feriados).
+              </span>
+              {empleado && diasCalculados > empleado.diasDisponibles && (
+                <p className="text-xs mt-1">
+                  El empleado solo tiene {empleado.diasDisponibles} día(s)
+                  disponibles. Reducí el rango o ajustá el saldo primero.
+                </p>
               )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Ingresá las fechas para ver el cálculo de días hábiles.
+            </p>
+          )}
+          <Field>
+            <FieldLabel>Motivo / nota</FieldLabel>
+            <Textarea
+              {...form.register("motivo")}
+              placeholder="Ej. Vacaciones de medio año"
+              rows={2}
             />
-            <Controller
-              name="fechaFin"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor="req-fecha-fin">Fecha fin</FieldLabel>
-                  <Input
-                    id="req-fecha-fin"
-                    type="date"
-                    required
-                    {...field}
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </Field>
-              )}
+          </Field>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="enviarNotificacion"
+              {...form.register("enviarNotificacion")}
+              className="size-4"
             />
-            <Controller
-              name="nota"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor="req-nota">Motivo / nota (opcional)</FieldLabel>
-                  <Textarea
-                    id="req-nota"
-                    placeholder={
-                      tipo === "vacacion"
-                        ? "Motivo o comentario..."
-                        : "Describí brevemente el motivo."
-                    }
-                    {...field}
-                    value={field.value ?? ""}
-                    aria-invalid={fieldState.invalid}
-                  />
-                  {fieldState.error && (
-                    <p className="text-destructive text-sm">
-                      {fieldState.error.message}
-                    </p>
-                  )}
-                </Field>
-              )}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
+            <label
+              htmlFor="enviarNotificacion"
+              className="text-sm flex items-center gap-2"
+            >
+              <Mail className="size-4" />
+              Enviar notificación por email al empleado
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Otorgando..." : "Otorgar vacaciones"}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Ajustar Saldo Dialog ─────────────────────────────────────────────────────
+
+function AjustarSaldoDialog({
+  open,
+  empleado,
+  onOpenChange,
+  onSuccess,
+}: {
+  open: boolean;
+  empleado: EmpleadoConSaldo | null;
+  onOpenChange: (o: boolean) => void;
+  onSuccess: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+
+  const form = useForm<AjusteSaldoData>({
+    resolver: valibotResolver(AjusteSaldoSchema),
+    defaultValues: {
+      empleadoId: empleado?.empleadoId ?? "",
+      dias: 0,
+      motivo: "",
+    },
+  });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        empleadoId: empleado?.empleadoId ?? "",
+        dias: 0,
+        motivo: "",
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, empleado?.empleadoId]);
+
+  const onSubmit = async (data: AjusteSaldoData) => {
+    setSubmitting(true);
+    const res = await ajustarSaldo(data);
+    setSubmitting(false);
+    if (res.success) {
+      toast.success(res.message);
+      onSuccess();
+    } else {
+      toast.error(res.message);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ajustar saldo</DialogTitle>
+          <DialogDescription>
+            {empleado
+              ? `Ajustar saldo de ${empleado.nombre} ${empleado.apellidos} (saldo actual: ${empleado.diasDisponibles} días).`
+              : "—"}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+        >
+          <Field>
+            <FieldLabel>Días (positivo o negativo)</FieldLabel>
+            <Input
+              type="number"
+              {...form.register("dias", { valueAsNumber: true })}
+              placeholder="Ej. 5 o -3"
+            />
+            <p className="text-xs text-muted-foreground">
+              Positivo suma días, negativo descuenta (usado para correcciones de
+              histórico).
+            </p>
+          </Field>
+          <Field>
+            <FieldLabel>Motivo (obligatorio)</FieldLabel>
+            <Textarea
+              {...form.register("motivo")}
+              placeholder="Ej. Corrección de histórico por instalación del sistema"
+              rows={3}
+            />
+          </Field>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Aplicando..." : "Aplicar ajuste"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Historial Sheet ───────────────────────────────────────────────────────────
+
+function HistorialSheet({
+  open,
+  onOpenChange,
+  empleado,
+  movimientos,
+  loading,
+  esAdmin,
+  onMovimientoChange,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  empleado: EmpleadoConSaldo | null;
+  movimientos: Movimiento[];
+  loading: boolean;
+  esAdmin: boolean;
+  onMovimientoChange: () => void;
+}) {
+  const [accionPorId, setAccionPorId] = useState<Record<string, "pdf" | "email">>(
+    {},
+  );
+
+  async function handleDescargar(movimientoId: string) {
+    setAccionPorId((p) => ({ ...p, [movimientoId]: "pdf" }));
+    const res = await generarBoletaVacacion({ movimientoId });
+    setAccionPorId((p) => {
+      const next = { ...p };
+      delete next[movimientoId];
+      return next;
+    });
+    if (!res.success) {
+      toast.error(res.message);
+      return;
+    }
+    const data = res.data as {
+      base64: string;
+      filename: string;
+      contentType: string;
+    };
+    try {
+      const byteChars = atob(data.base64);
+      const bytes = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) {
+        bytes[i] = byteChars.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: data.contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Boleta descargada");
+    } catch {
+      toast.error("No se pudo descargar la boleta");
+    }
+  }
+
+  async function handleReenviarEmail(movimientoId: string) {
+    setAccionPorId((p) => ({ ...p, [movimientoId]: "email" }));
+    const res = await reenviarBoletaEmail({ movimientoId });
+    setAccionPorId((p) => {
+      const next = { ...p };
+      delete next[movimientoId];
+      return next;
+    });
+    if (res.success) {
+      toast.success(res.message);
+      onMovimientoChange();
+    } else {
+      toast.error(res.message);
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>
+            {empleado
+              ? `${empleado.nombre} ${empleado.apellidos}`
+              : "Historial"}
+          </SheetTitle>
+          <SheetDescription>
+            {empleado
+              ? `Saldo actual: ${empleado.diasDisponibles} días · Devengados: ${empleado.diasDevengados}`
+              : ""}
+          </SheetDescription>
+        </SheetHeader>
+        <Separator className="my-4" />
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">Cargando...</div>
+        ) : movimientos.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            No hay movimientos registrados.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {movimientos.map((m) => {
+              const accion = accionPorId[m.id];
+              const isOtorgamiento = m.tipo === "otorgamiento";
+              return (
+                <Card key={m.id}>
+                  <CardContent className="pt-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Badge variant={getTipoVariant(m.tipo)}>
+                        {getTipoLabel(m.tipo)}
+                      </Badge>
+                      <span
+                        className={`text-xl font-bold tabular-nums ${m.dias > 0 ? "text-emerald-600" : "text-red-600"}`}
+                      >
+                        {m.dias > 0 ? "+" : ""}
+                        {m.dias} días
+                      </span>
+                    </div>
+                    <p className="text-sm">{m.motivo}</p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>{fmtFechaHora(m.fecha)}</span>
+                      <span>{m.realizadoPorNombre ?? "—"}</span>
+                    </div>
+                    {isOtorgamiento && (
+                      <div className="flex items-center gap-2 pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDescargar(m.id)}
+                          disabled={!!accion}
+                        >
+                          {accion === "pdf" ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <Download className="size-4" />
+                          )}
+                          Descargar boleta
+                        </Button>
+                        {esAdmin && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReenviarEmail(m.id)}
+                            disabled={!!accion}
+                          >
+                            {accion === "email" ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Mail className="size-4" />
+                            )}
+                            Reenviar por email
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ── Helper: Empleado Select ───────────────────────────────────────────────────
+
+function EmpleadoSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [empleados, setEmpleados] = useState<EmpleadoConSaldo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    getEmpleadosConSaldo().then((res) => {
+      if (res.success) {
+        setEmpleados((res.data as { empleados: EmpleadoConSaldo[] }).empleados);
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  return (
+    <Select value={value} onValueChange={onChange} disabled={loading}>
+      <SelectTrigger>
+        <SelectValue
+          placeholder={loading ? "Cargando..." : "Seleccionar empleado"}
+        />
+      </SelectTrigger>
+      <SelectContent>
+        {empleados.map((e) => (
+          <SelectItem key={e.empleadoId} value={e.empleadoId}>
+            {e.nombre} {e.apellidos} · {e.cedula} (saldo: {e.diasDisponibles})
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

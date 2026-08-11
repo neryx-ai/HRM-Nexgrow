@@ -7,7 +7,6 @@ import { registroAsistencia } from "@/db/schema/registro-asistencia.schema";
 import { resumenAsistenciaDiaria } from "@/db/schema/resumen-asistencia-diaria.schema";
 import { sucursal } from "@/db/schema/sucursal.schema";
 import { getMiEmpleado } from "@/lib/empleado";
-import { getMisSolicitudes } from "@/actions/asistencia.actions";
 import { MiAsistenciaManager } from "./mi-asistencia-manager";
 
 export default async function MiAsistenciaPage() {
@@ -64,10 +63,6 @@ export default async function MiAsistenciaPage() {
     .orderBy(desc(registroAsistencia.timestamp))
     .limit(10);
 
-  const solicitudesRes = await getMisSolicitudes();
-  const solicitudesIniciales =
-    (solicitudesRes.data as { solicitudes?: unknown[] })?.solicitudes ?? [];
-
   return (
     <div className="p-2 md:pr-4 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-4 font-heading">Mi asistencia</h1>
@@ -94,7 +89,6 @@ export default async function MiAsistenciaPage() {
         }
         resumenHoy={resumenHoy ?? null}
         ultimosRegistros={ultimosRegistros}
-        solicitudesIniciales={solicitudesIniciales}
       />
     </div>
   );

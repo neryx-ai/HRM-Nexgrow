@@ -77,25 +77,11 @@ interface RegistroAsistencia {
   nota: string | null;
   fueraDeGeocerca: boolean;
 }
-
-interface SolicitudPersonal {
-  id: string;
-  tipo: string;
-  fechaInicio: string;
-  fechaFin: string;
-  diasHabiles: number;
-  estado: string;
-  motivo: string | null;
-  notaResolucion: string | null;
-  createdAt: Date;
-}
-
 interface Props {
   empleado: EmpleadoResumen;
   sucursal: SucursalResumen | null;
   resumenHoy: ResumenHoy | null;
   ultimosRegistros: RegistroAsistencia[];
-  solicitudesIniciales: unknown[];
 }
 
 export function MiAsistenciaManager({
@@ -103,7 +89,6 @@ export function MiAsistenciaManager({
   sucursal,
   resumenHoy,
   ultimosRegistros,
-  solicitudesIniciales,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const geo = useGeolocation({ timeoutMs: 8000 });
@@ -320,26 +305,30 @@ export function MiAsistenciaManager({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Mis solicitudes</span>
+            <span>Días libres y permisos</span>
             <Button asChild size="sm">
-              <Link href="/dashboard/vacations">
+              <Link href="/dashboard/days-off">
                 <Plus className="mr-1 size-4" /> Nueva
               </Link>
             </Button>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <SolicitudesList
-            solicitudes={solicitudesIniciales as SolicitudPersonal[]}
-          />
-          <p className="mt-3 text-xs text-muted-foreground">
-            Las solicitudes de vacaciones, días libres, permisos e
-            incapacidades se gestionan desde el módulo{" "}
+          <p className="text-sm text-muted-foreground">
+            Las solicitudes de días libres, permisos e incapacidades se
+            gestionan desde el módulo{" "}
+            <Link
+              href="/dashboard/days-off"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Días libres
+            </Link>
+            . Tu saldo de vacaciones está disponible en{" "}
             <Link
               href="/dashboard/vacations"
               className="text-primary underline-offset-4 hover:underline"
             >
-              Solicitudes
+              Vacaciones
             </Link>
             .
           </p>
@@ -400,62 +389,6 @@ function HistorialTable({ registros }: { registros: RegistroAsistencia[] }) {
               ) : (
                 <Badge variant="secondary">OK</Badge>
               )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function SolicitudesList({
-  solicitudes,
-}: {
-  solicitudes: SolicitudPersonal[];
-}) {
-  if (solicitudes.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Aún no enviaste solicitudes.
-      </p>
-    );
-  }
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Tipo</TableHead>
-          <TableHead>Rango</TableHead>
-          <TableHead>Días hábiles</TableHead>
-          <TableHead>Estado</TableHead>
-          <TableHead>Nota</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {solicitudes.map((s) => (
-          <TableRow key={s.id}>
-            <TableCell className="capitalize">
-              {s.tipo.replace("_", " ")}
-            </TableCell>
-            <TableCell>
-              {s.fechaInicio} → {s.fechaFin}
-            </TableCell>
-            <TableCell>{s.diasHabiles}</TableCell>
-            <TableCell>
-              <Badge
-                variant={
-                  s.estado === "aprobada"
-                    ? "default"
-                    : s.estado === "rechazada"
-                      ? "destructive"
-                      : "secondary"
-                }
-              >
-                {s.estado}
-              </Badge>
-            </TableCell>
-            <TableCell className="text-xs text-muted-foreground">
-              {s.notaResolucion ?? s.motivo ?? "—"}
             </TableCell>
           </TableRow>
         ))}

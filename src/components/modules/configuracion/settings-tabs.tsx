@@ -6,6 +6,7 @@ import { DeduccionesForm, type Deduccion } from "./deducciones-form";
 import { FeriadosTable } from "./feriados-table";
 import { TramosTable } from "./tramos-table";
 import { UsuariosTable } from "./usuarios-table";
+import { ConfiguracionGeneralPanel } from "./configuracion-general-panel";
 
 interface Feriado {
   id: string;
@@ -36,7 +37,14 @@ interface Usuario {
   createdAt: Date;
 }
 
+interface ConfiguracionGeneral {
+  clave: string;
+  valor: string;
+  descripcion: string | null;
+}
+
 const TABS = [
+  { id: "general", label: "General" },
   { id: "deducciones", label: "Deducciones" },
   { id: "feriados", label: "Feriados" },
   { id: "tramos", label: "Tramos Renta" },
@@ -50,13 +58,15 @@ export function SettingsTabs({
   feriados,
   tramos,
   usuarios,
+  configuracionesGenerales,
 }: {
   deducciones: Deduccion[];
   feriados: Feriado[];
   tramos: Tramo[];
   usuarios: Usuario[];
+  configuracionesGenerales: ConfiguracionGeneral[];
 }) {
-  const [activeTab, setActiveTab] = useState<TabId>("deducciones");
+  const [activeTab, setActiveTab] = useState<TabId>("general");
 
   return (
     <div>
@@ -74,6 +84,15 @@ export function SettingsTabs({
             {tab.label}
           </Button>
         ))}
+      </div>
+      <div
+        id="panel-general"
+        role="tabpanel"
+        hidden={activeTab !== "general"}
+      >
+        {activeTab === "general" && (
+          <ConfiguracionGeneralPanel configuraciones={configuracionesGenerales} />
+        )}
       </div>
       <div
         id="panel-deducciones"

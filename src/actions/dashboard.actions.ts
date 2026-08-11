@@ -11,7 +11,7 @@ import { planilla } from "@/db/schema/planilla.schema";
 import { detallePlanilla } from "@/db/schema/detalle-planilla.schema";
 import { resumenAsistenciaDiaria } from "@/db/schema/resumen-asistencia-diaria.schema";
 import { saldoVacaciones } from "@/db/schema/saldo-vacaciones.schema";
-import { solicitudVacacion } from "@/db/schema/solicitud-vacacion.schema";
+import { movimientoSaldoVacacion } from "@/db/schema/movimiento-saldo-vacacion.schema";
 import {
   eq,
   sql,
@@ -111,8 +111,8 @@ export async function getDashboardAdminRRHH(): Promise<ActionResponse> {
 
     const [solicitudesVacacionPendientes] = await db
       .select({ count: count() })
-      .from(solicitudVacacion)
-      .where(eq(solicitudVacacion.estado, "pendiente"));
+      .from(movimientoSaldoVacacion)
+      .where(eq(movimientoSaldoVacacion.tipo, "otorgamiento"));
 
     const asistenciasHoy = new Date().toISOString().split("T")[0];
     const [asistenciaHoy] = await db
@@ -237,23 +237,23 @@ export async function getDashboardEmpleado(): Promise<ActionResponse> {
         diasDisponibles: saldoVacaciones.diasDisponibles,
         diasUsados: saldoVacaciones.diasUsados,
         diasOtorgados: saldoVacaciones.diasOtorgados,
-        diasPendientes: saldoVacaciones.diasPendientes,
       })
       .from(saldoVacaciones)
       .where(eq(saldoVacaciones.empleadoId, emp.id))
       .orderBy(desc(saldoVacaciones.periodoInicio))
       .limit(1);
 
-    const misSolicitudes = await db
+    const misMovimientos = await db
       .select({
-        fechaInicio: solicitudVacacion.fechaInicio,
-        fechaFin: solicitudVacacion.fechaFin,
-        diasHabiles: solicitudVacacion.diasHabiles,
-        estado: solicitudVacacion.estado,
+        id: movimientoSaldoVacacion.id,
+        tipo: movimientoSaldoVacacion.tipo,
+        dias: movimientoSaldoVacacion.dias,
+        motivo: movimientoSaldoVacacion.motivo,
+        fecha: movimientoSaldoVacacion.fecha,
       })
-      .from(solicitudVacacion)
-      .where(eq(solicitudVacacion.empleadoId, emp.id))
-      .orderBy(desc(solicitudVacacion.createdAt))
+      .from(movimientoSaldoVacacion)
+      .where(eq(movimientoSaldoVacacion.empleadoId, emp.id))
+      .orderBy(desc(movimientoSaldoVacacion.fecha))
       .limit(5);
 
     const ultimasColillas = await db
@@ -290,7 +290,8 @@ export async function getDashboardEmpleado(): Promise<ActionResponse> {
         },
         asistenciaReciente,
         saldoVacaciones: saldo || null,
-        solicitudesVacacion: misSolicitudes,
+        movimientosVacacion: misMovimientos,
+        solicitudesVacacion: [],
         ultimasColillas,
       },
     };

@@ -15,7 +15,7 @@ const statement = {
     "list-own", // Ver la propia asistencia
     "edit", // Corregir un registro existente
   ],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
   solicitudPersonal: ["request", "approve", "list-own", "list"],
   notificacionGeo: ["list", "resolve"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
@@ -35,7 +35,7 @@ export const adminRole = ac.newRole({
   puesto: ["create", "update", "delete", "list"],
   empleado: ["create", "update", "delete", "list", "view-own"],
   asistencia: ["marcar-manual", "marcar-self", "list", "list-own", "edit"],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
   solicitudPersonal: ["request", "approve", "list", "list-own"],
   notificacionGeo: ["list", "resolve"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
@@ -52,7 +52,7 @@ export const rrhhRole = ac.newRole({
   asistencia: ["marcar-manual", "marcar-self", "list", "list-own", "edit"],
   planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
   quiosco: ["activar"],
-  vacacion: ["solicitar", "aprobar", "rechazar", "list", "list-own"],
+  vacacion: ["otorgar", "ajustar", "list", "list-own"],
   solicitudPersonal: ["request", "approve", "list", "list-own"],
   notificacionGeo: ["list", "resolve"],
   perfil: ["ver", "editar"],
@@ -63,7 +63,7 @@ export const rrhhRole = ac.newRole({
 export const empleadoRole = ac.newRole({
   empleado: ["view-own"],
   asistencia: ["marcar-self", "list-own"], // Marca y ve su propia asistencia
-  vacacion: ["solicitar", "list-own"],
+  vacacion: ["list-own"],
   solicitudPersonal: ["request", "list-own"],
   perfil: ["ver", "editar"],
 });

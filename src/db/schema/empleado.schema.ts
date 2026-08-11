@@ -20,7 +20,7 @@ import { documentoEmpleado } from "./documento-empleado.schema";
 import { registroAsistencia } from "./registro-asistencia.schema";
 import { resumenAsistenciaDiaria } from "./resumen-asistencia-diaria.schema";
 import { saldoVacaciones } from "./saldo-vacaciones.schema";
-import { solicitudVacacion } from "./solicitud-vacacion.schema";
+import { movimientoSaldoVacacion } from "./movimiento-saldo-vacacion.schema";
 import { solicitudPersonal } from "./solicitud-personal.schema";
 import { notificacionGeo } from "./notificacion-geo.schema";
 
@@ -97,7 +97,7 @@ export const empleadoRelations = relations(empleado, ({ one, many }) => ({
   registrosAsistencia: many(registroAsistencia),
   resumenesAsistencia: many(resumenAsistenciaDiaria),
   saldosVacaciones: many(saldoVacaciones),
-  solicitudesVacacion: many(solicitudVacacion),
+  movimientosSaldoVacacion: many(movimientoSaldoVacacion),
   solicitudesPersonal: many(solicitudPersonal),
   notificacionesGeo: many(notificacionGeo),
 }));

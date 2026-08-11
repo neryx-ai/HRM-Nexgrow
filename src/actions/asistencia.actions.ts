@@ -28,6 +28,7 @@ import { logger } from "@/lib/logger";
 import { revalidatePath } from "next/cache";
 import { evaluarGeocerca, esCoordenadaValida } from "@/lib/geo";
 import { getMiEmpleado } from "@/lib/empleado";
+import { calcularDiasHabiles } from "@/lib/vacaciones";
 import crypto from "crypto";
 
 const TOLERANCIA_RETRASO_MINUTOS = 15;
@@ -1040,7 +1041,7 @@ export async function solicitarDiaPersonal(
       };
     }
 
-    const diasHabiles = calcularDiasHabilesSimple(
+    const diasHabiles = await calcularDiasHabiles(
       data.fechaInicio,
       data.fechaFin,
     );
@@ -1259,23 +1260,6 @@ export async function aprobarRechazarSolicitudPersonal(
       data: {},
     };
   }
-}
-
-function calcularDiasHabilesSimple(
-  fechaInicio: string,
-  fechaFin: string,
-): number {
-  const inicio = new Date(`${fechaInicio}T00:00:00`);
-  const fin = new Date(`${fechaFin}T00:00:00`);
-  if (fin < inicio) return 0;
-  let dias = 0;
-  const cursor = new Date(inicio);
-  while (cursor <= fin) {
-    const dow = cursor.getDay();
-    if (dow !== 0 && dow !== 6) dias++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dias;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
