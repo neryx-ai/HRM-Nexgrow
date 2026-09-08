@@ -115,8 +115,26 @@ export const CrearTramoRentaSchema = v.object({
   ),
 });
 
+export const ReenviarColillaSchema = v.object({
+  detallePlanillaId: v.pipe(
+    v.string("El ID del detalle es requerido."),
+    v.nonEmpty("El ID del detalle es requerido."),
+  ),
+});
+
+export const ReenviarColillaTodasSchema = v.object({
+  planillaId: v.pipe(
+    v.string("El ID de la planilla es requerido."),
+    v.nonEmpty("El ID de la planilla es requerido."),
+  ),
+});
+
 export type CrearPlanillaData = v.InferOutput<typeof CrearPlanillaSchema>;
 export type AgregarDeduccionData = v.InferOutput<typeof AgregarDeduccionSchema>;
 export type AgregarIngresoExtraData = v.InferOutput<typeof AgregarIngresoExtraSchema>;
 export type ConfirmarPlanillaData = v.InferOutput<typeof ConfirmarPlanillaSchema>;
 export type CrearTramoRentaData = v.InferOutput<typeof CrearTramoRentaSchema>;
+export type ReenviarColillaData = v.InferOutput<typeof ReenviarColillaSchema>;
+export type ReenviarColillaTodasData = v.InferOutput<
+  typeof ReenviarColillaTodasSchema
+>;

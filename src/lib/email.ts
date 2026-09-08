@@ -1,6 +1,13 @@
 import nodemailer from "nodemailer";
 import { logger } from "@/lib/logger";
 
+export type EmailSendResult = {
+  success: boolean;
+  error?: string;
+  code?: string;
+  messageId?: string;
+};
+
 type SmtpConfig = {
   host: string;
   port: number;
@@ -59,7 +66,14 @@ async function sendEmail({
   html: string;
   text?: string;
 }): Promise<boolean> {
-  return sendEmailInternal({ to, subject, html, text, attachments: undefined });
+  const result = await sendEmailInternal({
+    to,
+    subject,
+    html,
+    text,
+    attachments: undefined,
+  });
+  return result.success;
 }
 
 async function sendEmailWithAttachment({
@@ -75,6 +89,29 @@ async function sendEmailWithAttachment({
   text?: string;
   attachments: Array<{ filename: string; content: Buffer; contentType?: string }>;
 }): Promise<boolean> {
+  const result = await sendEmailInternal({
+    to,
+    subject,
+    html,
+    text,
+    attachments,
+  });
+  return result.success;
+}
+
+async function sendEmailWithResult({
+  to,
+  subject,
+  html,
+  text,
+  attachments,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
+}): Promise<EmailSendResult> {
   return sendEmailInternal({ to, subject, html, text, attachments });
 }
 
@@ -90,20 +127,19 @@ async function sendEmailInternal({
   html: string;
   text?: string;
   attachments?: Array<{ filename: string; content: Buffer; contentType?: string }>;
-}): Promise<boolean> {
+}): Promise<EmailSendResult> {
   const config = getSmtpConfig();
 
   if (!config) {
-    logger.warn(
-      "EMAIL",
-      "SMTP no configurado. No se envió el correo. Configurá las variables SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM en tu archivo .env",
-    );
+    const mensaje =
+      "SMTP no configurado. Definí SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS y SMTP_FROM en el entorno.";
+    logger.warn("EMAIL", `${mensaje} No se envió el correo a ${to}.`);
     logger.warn("EMAIL", `Datos del correo que no se envió:`, {
       to,
       subject,
       hasAttachments: !!attachments?.length,
     });
-    return false;
+    return { success: false, error: mensaje, code: "SMTP_NOT_CONFIGURED" };
   }
 
   const redirectTo = process.env.SMTP_TEST_EMAIL;
@@ -119,7 +155,11 @@ async function sendEmailInternal({
   }
 
   const transporter = createTransporter();
-  if (!transporter) return false;
+  if (!transporter) {
+    const mensaje = "No se pudo crear el transportador SMTP.";
+    logger.error("EMAIL", mensaje);
+    return { success: false, error: mensaje, code: "TRANSPORTER_ERROR" };
+  }
 
   try {
     const info = await transporter.sendMail({
@@ -140,10 +180,34 @@ async function sendEmailInternal({
       subject,
       attachments: attachments?.length ?? 0,
     });
-    return true;
+    return { success: true, messageId: info.messageId };
   } catch (error) {
-    logger.error("EMAIL", `Error al enviar correo a ${to}`, error);
-    return false;
+    const mensaje = extraerMensajeError(error);
+    logger.error(
+      "EMAIL",
+      `Error al enviar correo a ${to}: ${mensaje}`,
+      error,
+    );
+    return {
+      success: false,
+      error: mensaje,
+      code: "SEND_ERROR",
+    };
+  }
+}
+
+function extraerMensajeError(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.message && error.message.trim().length > 0) {
+      return error.message;
+    }
+    return error.name || "Error desconocido del transportador SMTP";
+  }
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Error desconocido al enviar el correo";
   }
 }
 
@@ -458,6 +522,7 @@ function buildSolicitudPersonalResueltaEmailHtml({
 export const emailService = {
   sendEmail,
   sendEmailWithAttachment,
+  sendEmailWithResult,
   isSmtpConfigured,
   buildWelcomeEmailHtml,
   buildResetPasswordEmailHtml,

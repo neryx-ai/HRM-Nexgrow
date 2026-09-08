@@ -17,5 +17,6 @@ export * from "./schema/detalle-planilla.schema";
 export * from "./schema/deduccion-adicional.schema";
 export * from "./schema/ingreso-extra.schema";
 export * from "./schema/auditoria.schema";
+export * from "./schema/envio-colilla-log.schema";
 export * from "./schema/configuracion-deduccion.schema";
 export * from "./schema/configuracion-general.schema";

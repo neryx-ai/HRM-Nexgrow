@@ -67,7 +67,7 @@ export default function SucursalMapaLeaflet({
   const markerRef = useRef<L.Marker | null>(null);
 
   return (
-    <div className="h-72 w-full rounded-md overflow-hidden border">
+    <div className="relative isolate h-72 w-full rounded-md overflow-hidden border">
       <MapContainer
         center={center}
         zoom={DEFAULT_ZOOM}
