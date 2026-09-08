@@ -13,6 +13,7 @@ import { empleado } from "@/db/schema/empleado.schema";
 import { user } from "@/db/schema/auth.schema";
 import { sucursal } from "@/db/schema/sucursal.schema";
 import { puesto } from "@/db/schema/puesto.schema";
+import { envioColillaLog } from "@/db/schema/envio-colilla-log.schema";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import * as v from "valibot";
 import {
@@ -21,12 +22,14 @@ import {
   AgregarIngresoExtraSchema,
   ConfirmarPlanillaSchema,
   CrearTramoRentaSchema,
+  ReenviarColillaSchema,
+  ReenviarColillaTodasSchema,
 } from "@/lib/validations/planilla";
 import {
   calcularPlanillaEmpleado,
   calcularTotalesPlanilla,
 } from "@/lib/planilla";
-import { emailService } from "@/lib/email";
+import { emailService, type EmailSendResult } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 import { registrarAuditoria } from "@/lib/auditoria";
@@ -803,7 +806,7 @@ export async function confirmarPlanilla(
       })
       .where(eq(planilla.id, data.planillaId));
 
-    enviarColillasEnBackground(data.planillaId);
+    enviarColillasEnBackground(data.planillaId, session.user.id);
 
     revalidatePath("/dashboard/payroll");
 
@@ -829,7 +832,10 @@ export async function confirmarPlanilla(
   }
 }
 
-async function enviarColillasEnBackground(planillaId: string): Promise<void> {
+async function enviarColillasEnBackground(
+  planillaId: string,
+  realizadoPor: string,
+): Promise<void> {
   try {
     const detalles = await db
       .select({
@@ -854,63 +860,193 @@ async function enviarColillasEnBackground(planillaId: string): Promise<void> {
       .where(eq(planilla.id, planillaId))
       .limit(1);
 
-    for (const d of detalles) {
-      if (!d.userEmail) continue;
-
-      const deduccionesEmp = await db
-        .select()
-        .from(deduccionAdicional)
-        .where(eq(deduccionAdicional.detallePlanillaId, d.detalle.id));
-
-      const ingresosEmp = await db
-        .select()
-        .from(ingresoExtra)
-        .where(eq(ingresoExtra.detallePlanillaId, d.detalle.id));
-
-      const html = buildColillaPagoHtml({
-        nombre: `${d.empleadoNombre} ${d.empleadoApellidos}`,
-        cedula: d.empleadoCedula,
-        sucursal: d.sucursalNombre,
-        puesto: d.puestoNombre,
-        periodoInicio: planillaData.fechaInicio,
-        periodoFin: planillaData.fechaFin,
-        fechaPago: planillaData.fechaPago,
-        tipo: planillaData.tipo,
-        salarioBruto: d.detalle.salarioBruto,
-        horasExtra: d.detalle.horasExtra,
-        montoHorasExtra: d.detalle.montoHorasExtra,
-        totalIngresosExtras: d.detalle.totalIngresosExtras,
-        ingresosExtras: ingresosEmp.map((i) => ({
-          concepto: i.concepto,
-          monto: i.monto,
-        })),
-        desgloseDeduccionesLegales: d.detalle.desgloseDeduccionesLegales ?? [],
-        impuestoRenta: d.detalle.impuestoRenta,
-        totalDeduccionesLegales: d.detalle.totalDeduccionesLegales,
-        totalDeduccionesAdicionales: d.detalle.totalDeduccionesAdicionales,
-        deduccionesAdicionales: deduccionesEmp.map((dd) => ({
-          concepto: dd.concepto,
-          monto: dd.monto,
-        })),
-        salarioNeto: d.detalle.salarioNeto,
-      });
-
-      const sent = await emailService.sendEmail({
-        to: d.userEmail,
-        subject: `Colilla de pago — ${planillaData.tipo === "mensual" ? "Planilla mensual" : "Planilla quincenal"} — Período: ${planillaData.fechaInicio} a ${planillaData.fechaFin}`,
-        html,
-      });
-
-      if (sent) {
-        await db
-          .update(detallePlanilla)
-          .set({ colillaEnviada: "1" })
-          .where(eq(detallePlanilla.id, d.detalle.id));
-      }
+    if (!planillaData) {
+      logger.error(
+        "PLANILLA",
+        `enviarColillasEnBackground: planilla ${planillaId} no encontrada`,
+      );
+      return;
     }
+
+    let exitosos = 0;
+    let fallidos = 0;
+    let sinEmail = 0;
+
+    for (const d of detalles) {
+      if (!d.userEmail) {
+        sinEmail++;
+        logger.warn(
+          "PLANILLA",
+          `Empleado ${d.empleadoNombre} ${d.empleadoApellidos} (${d.empleadoCedula}) sin email registrado. Colilla omitida.`,
+          { planillaId, detallePlanillaId: d.detalle.id },
+        );
+        continue;
+      }
+
+      const result = await enviarColillaPorDetalle({
+        detalleId: d.detalle.id,
+        planillaData,
+        tipoEnvio: "inicial",
+        realizadoPor,
+      });
+
+      if (result.success) exitosos++;
+      else fallidos++;
+    }
+
+    logger.info(
+      "PLANILLA",
+      `Envío de colillas finalizado para planilla ${planillaId}. Exitosos: ${exitosos}, Fallidos: ${fallidos}, Sin email: ${sinEmail}`,
+    );
   } catch (error) {
     logger.error("PLANILLA", "Error enviando colillas:", error);
   }
+}
+
+type ResultadoEnvioColilla = {
+  success: boolean;
+  message: string;
+  detalleId?: string;
+};
+
+async function enviarColillaPorDetalle(params: {
+  detalleId: string;
+  planillaData: typeof planilla.$inferSelect;
+  tipoEnvio: "inicial" | "reenvio";
+  realizadoPor: string;
+}): Promise<ResultadoEnvioColilla> {
+  const { detalleId, planillaData, tipoEnvio, realizadoPor } = params;
+
+  const [row] = await db
+    .select({
+      detalle: detallePlanilla,
+      empleadoNombre: empleado.nombre,
+      empleadoApellidos: empleado.apellidos,
+      empleadoCedula: empleado.cedula,
+      userEmail: user.email,
+      sucursalNombre: sucursal.nombre,
+      puestoNombre: puesto.nombre,
+    })
+    .from(detallePlanilla)
+    .innerJoin(empleado, eq(detallePlanilla.empleadoId, empleado.id))
+    .innerJoin(user, eq(empleado.userId, user.id))
+    .leftJoin(sucursal, eq(empleado.sucursalId, sucursal.id))
+    .leftJoin(puesto, eq(empleado.puestoId, puesto.id))
+    .where(eq(detallePlanilla.id, detalleId))
+    .limit(1);
+
+  if (!row) {
+    const mensaje = `Detalle de planilla ${detalleId} no encontrado`;
+    logger.error("PLANILLA", mensaje);
+    return { success: false, message: mensaje };
+  }
+
+  if (!row.userEmail) {
+    const mensaje = `Empleado ${row.empleadoNombre} ${row.empleadoApellidos} (${row.empleadoCedula}) no tiene email registrado`;
+    logger.warn("PLANILLA", mensaje, {
+      planillaId: planillaData.id,
+      detallePlanillaId: detalleId,
+    });
+    return { success: false, message: mensaje };
+  }
+
+  const deduccionesEmp = await db
+    .select()
+    .from(deduccionAdicional)
+    .where(eq(deduccionAdicional.detallePlanillaId, detalleId));
+
+  const ingresosEmp = await db
+    .select()
+    .from(ingresoExtra)
+    .where(eq(ingresoExtra.detallePlanillaId, detalleId));
+
+  const html = buildColillaPagoHtml({
+    nombre: `${row.empleadoNombre} ${row.empleadoApellidos}`,
+    cedula: row.empleadoCedula,
+    sucursal: row.sucursalNombre,
+    puesto: row.puestoNombre,
+    periodoInicio: planillaData.fechaInicio,
+    periodoFin: planillaData.fechaFin,
+    fechaPago: planillaData.fechaPago,
+    tipo: planillaData.tipo,
+    salarioBruto: row.detalle.salarioBruto,
+    horasExtra: row.detalle.horasExtra,
+    montoHorasExtra: row.detalle.montoHorasExtra,
+    totalIngresosExtras: row.detalle.totalIngresosExtras,
+    ingresosExtras: ingresosEmp.map((i) => ({
+      concepto: i.concepto,
+      monto: i.monto,
+    })),
+    desgloseDeduccionesLegales: row.detalle.desgloseDeduccionesLegales ?? [],
+    impuestoRenta: row.detalle.impuestoRenta,
+    totalDeduccionesLegales: row.detalle.totalDeduccionesLegales,
+    totalDeduccionesAdicionales: row.detalle.totalDeduccionesAdicionales,
+    deduccionesAdicionales: deduccionesEmp.map((dd) => ({
+      concepto: dd.concepto,
+      monto: dd.monto,
+    })),
+    salarioNeto: row.detalle.salarioNeto,
+  });
+
+  const subject = `Colilla de pago — ${planillaData.tipo === "mensual" ? "Planilla mensual" : "Planilla quincenal"} — Período: ${planillaData.fechaInicio} a ${planillaData.fechaFin}`;
+
+  const result: EmailSendResult = await emailService.sendEmailWithResult({
+    to: row.userEmail,
+    subject,
+    html,
+  });
+
+  try {
+    await db.insert(envioColillaLog).values({
+      planillaId: planillaData.id,
+      detallePlanillaId: detalleId,
+      empleadoId: row.detalle.empleadoId,
+      emailDestino: row.userEmail,
+      exito: result.success,
+      mensajeError: result.error ?? null,
+      mensajeId: result.messageId ?? null,
+      tipoEnvio,
+      realizadoPor,
+    });
+  } catch (logError) {
+    logger.error(
+      "PLANILLA",
+      "No se pudo registrar el log de envío de colilla:",
+      logError,
+    );
+  }
+
+  if (result.success) {
+    await db
+      .update(detallePlanilla)
+      .set({ colillaEnviada: "1" })
+      .where(eq(detallePlanilla.id, detalleId));
+
+    return {
+      success: true,
+      message: `Colilla enviada a ${row.userEmail}`,
+      detalleId,
+    };
+  }
+
+  logger.error(
+    "PLANILLA",
+    `Falló envío de colilla a ${row.userEmail} (${row.empleadoNombre} ${row.empleadoApellidos}, cédula ${row.empleadoCedula}). planilla=${planillaData.id}, detalle=${detalleId}. Error: ${result.error ?? "(sin mensaje)"}`,
+    {
+      planillaId: planillaData.id,
+      detallePlanillaId: detalleId,
+      empleadoId: row.detalle.empleadoId,
+      emailDestino: row.userEmail,
+      errorCode: result.code,
+      tipoEnvio,
+    },
+  );
+
+  return {
+    success: false,
+    message: `No se pudo enviar a ${row.userEmail}: ${result.error ?? "error desconocido"}`,
+    detalleId,
+  };
 }
 
 function buildColillaPagoHtml(data: {
@@ -1036,6 +1172,261 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+export async function reenviarColillaEmpleado(
+  formData: unknown,
+): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return {
+        success: false,
+        message: "No tenés permisos para reenviar colillas",
+        data: {},
+      };
+    }
+
+    const parsed = v.safeParse(ReenviarColillaSchema, formData);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: "Datos inválidos",
+        data: { errors: parsed.issues },
+      };
+    }
+
+    const data = parsed.output;
+
+    const [detalle] = await db
+      .select()
+      .from(detallePlanilla)
+      .where(eq(detallePlanilla.id, data.detallePlanillaId))
+      .limit(1);
+
+    if (!detalle) {
+      return {
+        success: false,
+        message: "Detalle de planilla no encontrado",
+        data: {},
+      };
+    }
+
+    const [planillaData] = await db
+      .select()
+      .from(planilla)
+      .where(eq(planilla.id, detalle.planillaId))
+      .limit(1);
+
+    if (!planillaData) {
+      return {
+        success: false,
+        message: "Planilla no encontrada",
+        data: {},
+      };
+    }
+
+    if (planillaData.estado !== "procesada") {
+      return {
+        success: false,
+        message:
+          "Solo se pueden reenviar colillas de planillas en estado procesada",
+        data: {},
+      };
+    }
+
+    const resultado = await enviarColillaPorDetalle({
+      detalleId: data.detallePlanillaId,
+      planillaData,
+      tipoEnvio: "reenvio",
+      realizadoPor: session.user.id,
+    });
+
+    await registrarAuditoria({
+      tabla: "detalle_planilla",
+      registroId: data.detallePlanillaId,
+      accion: "editar",
+      antes: { colillaEnviada: detalle.colillaEnviada },
+      despues: {
+        colillaEnviada: resultado.success ? "1" : detalle.colillaEnviada,
+        tipoEnvio: "reenvio",
+        exito: resultado.success,
+      },
+      realizadoPor: session.user.id,
+    });
+
+    if (!resultado.success) {
+      return {
+        success: false,
+        message: resultado.message,
+        data: { detallePlanillaId: data.detallePlanillaId },
+      };
+    }
+
+    return {
+      success: true,
+      message: resultado.message,
+      data: { detallePlanillaId: data.detallePlanillaId },
+    };
+  } catch (error) {
+    logger.error("PLANILLA", "Error al reenviar colilla:", error);
+    return {
+      success: false,
+      message: "Error al reenviar colilla",
+      data: {},
+    };
+  }
+}
+
+export async function reenviarColillaTodas(
+  formData: unknown,
+): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return {
+        success: false,
+        message: "No tenés permisos para reenviar colillas",
+        data: {},
+      };
+    }
+
+    const parsed = v.safeParse(ReenviarColillaTodasSchema, formData);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: "Datos inválidos",
+        data: { errors: parsed.issues },
+      };
+    }
+
+    const data = parsed.output;
+
+    const [planillaData] = await db
+      .select()
+      .from(planilla)
+      .where(eq(planilla.id, data.planillaId))
+      .limit(1);
+
+    if (!planillaData) {
+      return {
+        success: false,
+        message: "Planilla no encontrada",
+        data: {},
+      };
+    }
+
+    if (planillaData.estado !== "procesada") {
+      return {
+        success: false,
+        message:
+          "Solo se pueden reenviar colillas de planillas en estado procesada",
+        data: {},
+      };
+    }
+
+    const detalles = await db
+      .select({ id: detallePlanilla.id })
+      .from(detallePlanilla)
+      .where(eq(detallePlanilla.planillaId, data.planillaId))
+      .orderBy(detallePlanilla.id);
+
+    if (detalles.length === 0) {
+      return {
+        success: false,
+        message: "La planilla no tiene detalles para reenviar",
+        data: {},
+      };
+    }
+
+    logger.info(
+      "PLANILLA",
+      `Inicio de reenvío masivo: planilla=${data.planillaId}, ${detalles.length} empleados, solicitado por ${session.user.id}`,
+    );
+
+    let exitosos = 0;
+    let fallidos = 0;
+    let sinEmail = 0;
+    const erroresDetallados: string[] = [];
+
+    for (const d of detalles) {
+      const resultado = await enviarColillaPorDetalle({
+        detalleId: d.id,
+        planillaData,
+        tipoEnvio: "reenvio",
+        realizadoPor: session.user.id,
+      });
+
+      if (resultado.success) {
+        exitosos++;
+      } else if (resultado.message.includes("no tiene email")) {
+        sinEmail++;
+      } else {
+        fallidos++;
+        erroresDetallados.push(resultado.message);
+      }
+    }
+
+    await registrarAuditoria({
+      tabla: "planilla",
+      registroId: data.planillaId,
+      accion: "editar",
+      despues: {
+        tipoEnvio: "reenvio_masivo",
+        exitosos,
+        fallidos,
+        sinEmail,
+      },
+      realizadoPor: session.user.id,
+    });
+
+    logger.info(
+      "PLANILLA",
+      `Reenvío masivo finalizado: planilla=${data.planillaId}. Exitosos=${exitosos}, Fallidos=${fallidos}, Sin email=${sinEmail}`,
+    );
+
+    if (fallidos === 0 && sinEmail === 0) {
+      return {
+        success: true,
+        message: `Reenvío completado: ${exitosos} correo(s) enviado(s) correctamente.`,
+        data: { exitosos, fallidos, sinEmail },
+      };
+    }
+
+    const primerError =
+      erroresDetallados.length > 0
+        ? ` Primer error: ${erroresDetallados[0]}`
+        : "";
+
+    return {
+      success: false,
+      message: `Reenvío parcial: ${exitosos} enviados, ${fallidos} fallaron, ${sinEmail} sin email.${primerError}`,
+      data: { exitosos, fallidos, sinEmail },
+    };
+  } catch (error) {
+    logger.error("PLANILLA", "Error en reenvío masivo de colillas:", error);
+    return {
+      success: false,
+      message: "Error al reenviar colillas",
+      data: {},
+    };
+  }
 }
 
 export async function anularPlanilla(

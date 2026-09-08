@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   Download,
   FileSpreadsheet,
+  Loader2,
+  Mail,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +50,8 @@ import {
   eliminarDeduccionAdicional,
   eliminarIngresoExtra,
   confirmarPlanilla,
+  reenviarColillaEmpleado,
+  reenviarColillaTodas,
 } from "@/actions/planilla.actions";
 import {
   exportarPlanillaExcel,
@@ -149,6 +154,8 @@ export function PlanillaDetalle({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [reenviandoTodas, setReenviandoTodas] = useState(false);
+  const [reenviandoPorId, setReenviandoPorId] = useState<Record<string, boolean>>({});
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedDetalle, setSelectedDetalle] = useState<DetalleItem | null>(
     null,
@@ -276,6 +283,45 @@ export function PlanillaDetalle({
     }
   }
 
+  async function handleReenviar(detalleId: string, empleadoLabel: string) {
+    setReenviandoPorId((prev) => ({ ...prev, [detalleId]: true }));
+    try {
+      const result = await reenviarColillaEmpleado({ detallePlanillaId: detalleId });
+      if (result.success) {
+        toast.success(`Colilla reenviada a ${empleadoLabel}`);
+        router.refresh();
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error("Error al reenviar la colilla");
+    } finally {
+      setReenviandoPorId((prev) => {
+        const next = { ...prev };
+        delete next[detalleId];
+        return next;
+      });
+    }
+  }
+
+  async function handleReenviarTodas() {
+    setReenviandoTodas(true);
+    try {
+      const result = await reenviarColillaTodas({ planillaId: p.id });
+      if (result.success) {
+        toast.success(result.message);
+        router.refresh();
+      } else {
+        toast.warning(result.message, { duration: 8000 });
+        router.refresh();
+      }
+    } catch {
+      toast.error("Error al reenviar las colillas");
+    } finally {
+      setReenviandoTodas(false);
+    }
+  }
+
   function resetForm() {
     setFormData({ concepto: "", monto: "", tipo: "otro", fechaPago: "" });
     setSelectedDetalle(null);
@@ -382,6 +428,20 @@ export function PlanillaDetalle({
               >
                 <Send className="h-4 w-4 mr-2" />
                 Confirmar planilla
+              </Button>
+            )}
+            {p.estado === "procesada" && (
+              <Button
+                variant="outline"
+                onClick={handleReenviarTodas}
+                disabled={reenviandoTodas || loading}
+              >
+                {reenviandoTodas ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4 mr-2" />
+                )}
+                Reenviar a todos
               </Button>
             )}
           </div>
@@ -610,10 +670,36 @@ export function PlanillaDetalle({
                           </Button>
                         </div>
                       )}
-                      {p.estado === "procesada" && d.detalle.colillaEnviada === "1" && (
-                        <span title="Colilla enviada">
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
-                        </span>
+                      {p.estado === "procesada" && (
+                        <div className="flex justify-end items-center gap-1">
+                          {d.detalle.colillaEnviada === "1" ? (
+                            <span title="Colilla enviada">
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            </span>
+                          ) : (
+                            <span title="Colilla NO enviada — revisar logs">
+                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                            </span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Reenviar correo de colilla"
+                            disabled={reenviandoPorId[d.detalle.id]}
+                            onClick={() =>
+                              handleReenviar(
+                                d.detalle.id,
+                                `${d.empleadoNombre} ${d.empleadoApellidos}`,
+                              )
+                            }
+                          >
+                            {reenviandoPorId[d.detalle.id] ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                            ) : (
+                              <Mail className="h-4 w-4 text-blue-500" />
+                            )}
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
