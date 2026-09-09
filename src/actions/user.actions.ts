@@ -4,10 +4,10 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { ActionResponse } from "./types";
 import { db } from "@/db/drizzle";
-import { user } from "@/db/schema/auth.schema";
-import { eq, desc } from "drizzle-orm";
+import { user, account, session as sessionTable } from "@/db/schema/auth.schema";
+import { and, desc, eq, ne } from "drizzle-orm";
 import * as v from "valibot";
-import { CreateUserSchema } from "@/lib/validations/auth";
+import { CreateUserSchema, UpdateUserEmailSchema } from "@/lib/validations/auth";
 import { emailService } from "@/lib/email";
 import { logger } from "@/lib/logger";
 import { registrarAuditoria } from "@/lib/auditoria";
@@ -200,42 +200,144 @@ export async function resetUserPassword(userId: string): Promise<ActionResponse>
     const userRole = (session.user as { role?: string })?.role || "empleado";
     if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
 
-    const [targetUser] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, userId)).limit(1);
+    if (userId === session.user.id) {
+      return { success: false, message: "No podés restablecer tu propia contraseña desde acá. Usá la página de perfil.", data: {} };
+    }
+
+    const [targetUser] = await db
+      .select({ id: user.id, name: user.name, email: user.email })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
     if (!targetUser) return { success: false, message: "Usuario no encontrado", data: {} };
 
     const tempPassword = generateTempPassword();
 
-    await auth.api.createUser({
-      body: {
-        name: targetUser.name,
-        email: targetUser.email,
-        password: tempPassword,
-        role: "empleado",
-        data: { mustChangePassword: true },
-      },
+    await auth.api.setUserPassword({
+      body: { newPassword: tempPassword, userId },
+      headers: await headers(),
     });
 
+    await db.delete(sessionTable).where(eq(sessionTable.userId, userId));
+
     const baseUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
-    const html = emailService.buildWelcomeEmailHtml({
+    const html = emailService.buildPasswordResetByAdminEmailHtml({
       name: targetUser.name,
       email: targetUser.email,
       tempPassword,
       loginUrl: `${baseUrl}/login`,
     });
-    const emailSent = await emailService.sendEmail({ to: targetUser.email, subject: "Tu contraseña ha sido restablecida — Jivis RRHH", html });
+    const emailSent = await emailService.sendEmail({
+      to: targetUser.email,
+      subject: "Tu contraseña fue restablecida — Jivis RRHH",
+      html,
+    });
 
-    if (!emailSent) logger.warn("USER", `Contraseña restablecida pero correo no enviado a ${targetUser.email}: ${tempPassword}`);
+    if (!emailSent) {
+      logger.warn("USER", `Contraseña restablecida pero correo no enviado a ${targetUser.email}: ${tempPassword}`);
+    }
 
-    logger.info("USER", `Contraseña restablecida para ${userId}`);
+    logger.info("USER", `Contraseña restablecida para ${userId} por ${session.user.id}`);
+
+    await registrarAuditoria({
+      tabla: "user",
+      registroId: userId,
+      accion: "editar",
+      antes: { passwordReset: false },
+      despues: { passwordReset: true },
+      realizadoPor: session.user.id,
+    });
+
     return {
       success: true,
       message: emailSent
-        ? "Contraseña restablecida. Se envió un correo al usuario."
+        ? "Contraseña restablecida. Se envió un correo con la nueva contraseña temporal."
         : "Contraseña restablecida. No se pudo enviar el correo — revisá los logs.",
       data: { tempPassword: emailSent ? undefined : tempPassword },
     };
   } catch (error) {
     logger.error("USER", "Error al restablecer contraseña:", error);
     return { success: false, message: "Error al restablecer contraseña", data: {} };
+  }
+}
+
+export async function updateUserEmail(formData: unknown): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (userRole !== "admin") return { success: false, message: "Solo administradores", data: {} };
+
+    const parsed = v.safeParse(UpdateUserEmailSchema, formData);
+    if (!parsed.success) {
+      return { success: false, message: "Datos inválidos", data: { errors: parsed.issues } };
+    }
+
+    const { userId, email } = parsed.output;
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (userId === session.user.id) {
+      return { success: false, message: "No podés cambiar tu propio email desde acá. Usá la página de perfil.", data: {} };
+    }
+
+    const [targetUser] = await db
+      .select({ id: user.id, email: user.email, name: user.name })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (!targetUser) return { success: false, message: "Usuario no encontrado", data: {} };
+
+    if (targetUser.email.toLowerCase() === normalizedEmail) {
+      return { success: false, message: "El nuevo email es igual al actual", data: {} };
+    }
+
+    const [emailTaken] = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(and(eq(user.email, normalizedEmail), ne(user.id, userId)))
+      .limit(1);
+
+    if (emailTaken) {
+      return { success: false, message: "Ya existe otro usuario con ese correo electrónico", data: {} };
+    }
+
+    const oldEmail = targetUser.email;
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(user)
+        .set({ email: normalizedEmail, emailVerified: true, updatedAt: new Date() })
+        .where(eq(user.id, userId));
+
+      await tx
+        .update(account)
+        .set({ accountId: normalizedEmail, updatedAt: new Date() })
+        .where(and(eq(account.userId, userId), eq(account.providerId, "credential")));
+
+      await tx.delete(sessionTable).where(eq(sessionTable.userId, userId));
+    });
+
+    logger.info("USER", `Email actualizado: ${userId} (${oldEmail} → ${normalizedEmail}) por ${session.user.id}`);
+
+    await registrarAuditoria({
+      tabla: "user",
+      registroId: userId,
+      accion: "editar",
+      antes: { email: oldEmail },
+      despues: { email: normalizedEmail },
+      realizadoPor: session.user.id,
+    });
+
+    return {
+      success: true,
+      message: "Email actualizado. Las sesiones activas del usuario fueron revocadas.",
+      data: { email: normalizedEmail },
+    };
+  } catch (error) {
+    logger.error("USER", "Error al actualizar email:", error);
+    return { success: false, message: "Error al actualizar el email", data: {} };
   }
 }
