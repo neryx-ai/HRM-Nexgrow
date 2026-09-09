@@ -20,6 +20,7 @@ import {
   type EmpleadoConSaldo,
   type ResumenSaldo,
 } from "@/lib/saldo-vacaciones";
+import { diasDevengados } from "@/lib/calculo-meses";
 import { movimientoSaldoVacacion } from "@/db/schema/movimiento-saldo-vacacion.schema";
 import { saldoVacaciones } from "@/db/schema/saldo-vacaciones.schema";
 import { empleado } from "@/db/schema/empleado.schema";
@@ -74,11 +75,7 @@ async function refrescarCacheSaldo(
   const row = res[0];
   if (!row) return;
 
-  const meses =
-    (new Date().getFullYear() - new Date(row.fechaIngreso).getFullYear()) * 12 +
-    (new Date().getMonth() - new Date(row.fechaIngreso).getMonth()) -
-    (new Date().getDate() < new Date(row.fechaIngreso).getDate() ? 1 : 0);
-  const devengados = Math.max(0, meses);
+  const devengados = diasDevengados(row.fechaIngreso);
 
   const otorgados = Number(row.totalOtorgamientos) || 0;
   const ajustesPos = Number(row.totalAjustesPositivos) || 0;
