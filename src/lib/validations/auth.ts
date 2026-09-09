@@ -72,6 +72,21 @@ export const ForceChangePasswordSchema = v.object({
 
 export type ForceChangePasswordData = v.InferOutput<typeof ForceChangePasswordSchema>;
 
+export const UpdateUserEmailSchema = v.object({
+  userId: v.pipe(
+    v.string("El id de usuario debe ser una cadena de texto."),
+    v.nonEmpty("Falta el id del usuario."),
+  ),
+  email: v.pipe(
+    v.string("El correo electrónico debe ser una cadena de texto."),
+    v.nonEmpty("Por favor, introduce el correo electrónico."),
+    v.email("La dirección de correo electrónico no tiene un formato válido."),
+    v.maxLength(254, "El correo electrónico no puede exceder 254 caracteres."),
+  ),
+});
+
+export type UpdateUserEmailData = v.InferOutput<typeof UpdateUserEmailSchema>;
+
 export const CreateUserSchema = v.object({
   name: v.pipe(
     v.string("El nombre debe ser una cadena de texto."),
