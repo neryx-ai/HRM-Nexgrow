@@ -5,6 +5,9 @@ import {
   type TipoMovimientoSaldo,
 } from "@/db/schema/movimiento-saldo-vacacion.schema";
 import { and, eq, sql, desc } from "drizzle-orm";
+import { calcularMesesCumplidos, diasDevengados } from "@/lib/calculo-meses";
+
+export { calcularMesesCumplidos, diasDevengados };
 
 export const MAX_DIAS_POR_OTORGAMIENTO = 30;
 
@@ -12,51 +15,6 @@ export const TIPOS_POSITIVOS: ReadonlySet<TipoMovimientoSaldo> = new Set([
   "ajuste_positivo",
   "devengo",
 ]);
-
-/**
- * Calcula los meses cumplidos entre una fecha de ingreso y una fecha de referencia,
- * respetando el día del mes. Si el empleado entró el 24 de enero, el día se cumple
- * el 24 de cada mes siguiente (no el primero del mes).
- *
- * Casos borde:
- * - Ingreso 2025-01-10, ref 2025-02-09 → 0 meses (no llegó al 10).
- * - Ingreso 2025-01-10, ref 2025-02-10 → 1 mes.
- * - Ingreso 2025-01-31, ref 2025-02-28 → 0 meses (febrero no tiene 31).
- * - Ingreso 2025-01-31, ref 2025-03-31 → 2 meses.
- */
-export function mesesCumplidos(
-  fechaIngreso: string,
-  fechaReferencia: string = new Date().toISOString().split("T")[0],
-): number {
-  const [y1, m1, d1] = fechaIngreso.split("-").map(Number);
-  const [y2, m2, d2] = fechaReferencia.split("-").map(Number);
-
-  if (
-    [y1, m1, d1, y2, m2, d2].some((n) => Number.isNaN(n)) ||
-    y1 < 1900 ||
-    y2 < 1900
-  ) {
-    return 0;
-  }
-
-  let meses = (y2 - y1) * 12 + (m2 - m1);
-
-  if (d2 < d1) {
-    meses -= 1;
-  }
-
-  return Math.max(0, meses);
-}
-
-/**
- * Días devengados por un empleado en la fecha indicada (1 por mes cumplido).
- */
-export function diasDevengados(
-  fechaIngreso: string,
-  fechaReferencia?: string,
-): number {
-  return mesesCumplidos(fechaIngreso, fechaReferencia);
-}
 
 export interface ResumenSaldo {
   empleadoId: string;
@@ -310,17 +268,6 @@ export async function listarEmpleadosConSaldo(filtros?: {
       email: sql<string>`u.email`,
       fechaIngreso: sql<string>`e.fecha_ingreso::text`,
       estado: sql<string>`e.estado`,
-      diasDevengados: sql<number>`(
-        SELECT GREATEST(
-          0,
-          (EXTRACT(YEAR FROM AGE(CURRENT_DATE, e.fecha_ingreso)) * 12)
-          + EXTRACT(MONTH FROM AGE(CURRENT_DATE, e.fecha_ingreso))
-          - CASE
-              WHEN EXTRACT(DAY FROM CURRENT_DATE) < EXTRACT(DAY FROM e.fecha_ingreso)
-              THEN 1 ELSE 0
-            END
-        )::int
-      )`,
       totalOtorgamientos: sql<number>`COALESCE((
         SELECT SUM(m.dias) FROM movimiento_saldo_vacacion m
         WHERE m.empleado_id = e.id AND m.tipo = 'otorgamiento'
@@ -342,13 +289,13 @@ export async function listarEmpleadosConSaldo(filtros?: {
     .orderBy(sql`e.apellidos, e.nombre`);
 
   let resultado: EmpleadoConSaldo[] = rows.map((r) => {
-    const diasDevengados = Number(r.diasDevengados) || 0;
+    const devengados = diasDevengados(r.fechaIngreso);
     const totalOtorgamientos = Number(r.totalOtorgamientos) || 0;
     const totalAjustesPositivos = Number(r.totalAjustesPositivos) || 0;
     const totalAjustesNegativos = Number(r.totalAjustesNegativos) || 0;
 
     const diasDisponibles =
-      diasDevengados +
+      devengados +
       totalAjustesPositivos +
       totalOtorgamientos +
       totalAjustesNegativos;
@@ -362,7 +309,7 @@ export async function listarEmpleadosConSaldo(filtros?: {
       puestoNombre: r.puestoNombre ?? null,
       email: r.email ?? null,
       fechaIngreso: r.fechaIngreso,
-      diasDevengados,
+      diasDevengados: devengados,
       totalOtorgamientos,
       totalAjustesPositivos,
       totalAjustesNegativos,

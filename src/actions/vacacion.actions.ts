@@ -5,9 +5,11 @@ import { headers } from "next/headers";
 import { ActionResponse } from "./types";
 import { db } from "@/db/drizzle";
 import { feriado } from "@/db/schema/feriado.schema";
+import { saldoVacaciones } from "@/db/schema/saldo-vacaciones.schema";
 import { eq, desc } from "drizzle-orm";
 import * as v from "valibot";
 import { CrearFeriadoSchema } from "@/lib/validations/vacacion";
+import { diasDevengados } from "@/lib/calculo-meses";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
 
@@ -16,6 +18,9 @@ import { logger } from "@/lib/logger";
 // durante la Fase 1 del rediseño de vacaciones. Las funciones que dependían
 // de la tabla solicitud_vacacion (ya eliminada) quedan como stubs que
 // devuelven error explícito. La lógica real se reescribe en la Fase 2.
+// Excepción: `inicializarSaldoVacacion` se implementó porque
+// `empleado.actions.ts:230` la llama al crear un empleado y esperaba una
+// inicialización real del cache de saldo_vacaciones.
 // ────────────────────────────────────────────────────────────────────────────
 
 const EN_REEMPLAZO =
@@ -154,9 +159,49 @@ export async function aprobarRechazarVacacion(
 }
 
 export async function inicializarSaldoVacacion(
-  ...args: unknown[]
+  empleadoId: string,
+  fechaIngreso: string,
 ): Promise<ActionResponse> {
-  return stub(...args);
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false, message: "No autorizado", data: {} };
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return { success: false, message: "No tenés permisos", data: {} };
+    }
+
+    if (!empleadoId || !fechaIngreso) {
+      return { success: false, message: "Faltan datos del empleado", data: {} };
+    }
+
+    const devengados = diasDevengados(fechaIngreso);
+
+    await db
+      .insert(saldoVacaciones)
+      .values({
+        empleadoId,
+        periodoInicio: fechaIngreso,
+        periodoFin: "2099-12-31",
+        diasOtorgados: 0,
+        diasDisponibles: devengados,
+        diasUsados: 0,
+        ultimaActualizacion: new Date(),
+        actualizadoPor: session.user.id,
+      })
+      .onConflictDoNothing({
+        target: [saldoVacaciones.empleadoId, saldoVacaciones.periodoInicio],
+      });
+
+    return {
+      success: true,
+      message: "Saldo de vacaciones inicializado",
+      data: { diasDevengados: devengados },
+    };
+  } catch (error) {
+    logger.error("VACACION", "Error al inicializar saldo:", error);
+    return { success: false, message: "Error al inicializar saldo", data: {} };
+  }
 }
 
 export async function getResumenVacaciones(): Promise<ActionResponse> {
