@@ -24,11 +24,13 @@ import {
   CrearTramoRentaSchema,
   ReenviarColillaSchema,
   ReenviarColillaTodasSchema,
+  ActualizarHorasLaboradasSchema,
 } from "@/lib/validations/planilla";
 import {
   calcularPlanillaEmpleado,
   calcularTotalesPlanilla,
 } from "@/lib/planilla";
+import { buildColillaPagoHtml } from "@/lib/colilla-html";
 import { emailService, type EmailSendResult } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
@@ -267,6 +269,7 @@ export async function crearPlanilla(
         salarioBruto: calculo.salarioBruto,
         horasOrdinarias: calculo.horasOrdinarias,
         horasExtra: calculo.horasExtra,
+        horasLaboradas: "96",
         montoHorasExtra: calculo.montoHorasExtra,
         desgloseDeduccionesLegales: calculo.desgloseDeduccionesLegales,
         impuestoRenta: calculo.impuestoRenta,
@@ -746,6 +749,114 @@ async function recalcularTotalesPlanilla(planillaId: string): Promise<void> {
     .where(eq(planilla.id, planillaId));
 }
 
+export async function actualizarHorasLaboradas(
+  formData: unknown,
+): Promise<ActionResponse> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user) {
+      return { success: false, message: "No autorizado", data: {} };
+    }
+
+    const userRole = (session.user as { role?: string })?.role || "empleado";
+    if (!["admin", "rrhh"].includes(userRole)) {
+      return {
+        success: false,
+        message: "No tenés permisos para editar horas laboradas",
+        data: {},
+      };
+    }
+
+    const parsed = v.safeParse(ActualizarHorasLaboradasSchema, formData);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: "Datos inválidos",
+        data: { errors: parsed.issues },
+      };
+    }
+
+    const data = parsed.output;
+
+    const [detalle] = await db
+      .select()
+      .from(detallePlanilla)
+      .where(eq(detallePlanilla.id, data.detallePlanillaId))
+      .limit(1);
+
+    if (!detalle) {
+      return {
+        success: false,
+        message: "Detalle de planilla no encontrado",
+        data: {},
+      };
+    }
+
+    const [planillaData] = await db
+      .select()
+      .from(planilla)
+      .where(eq(planilla.id, detalle.planillaId))
+      .limit(1);
+
+    if (!planillaData) {
+      return {
+        success: false,
+        message: "Planilla no encontrada",
+        data: {},
+      };
+    }
+
+    if (planillaData.estado !== "borrador") {
+      return {
+        success: false,
+        message:
+          "Solo se pueden editar las horas laboradas de una planilla en estado borrador",
+        data: {},
+      };
+    }
+
+    const horasAnterior = detalle.horasLaboradas;
+    const horasNuevo = data.horasLaboradas.toFixed(2);
+
+    await db
+      .update(detallePlanilla)
+      .set({ horasLaboradas: horasNuevo })
+      .where(eq(detallePlanilla.id, data.detallePlanillaId));
+
+    revalidatePath("/dashboard/payroll");
+
+    logger.info(
+      "PLANILLA",
+      `Horas laboradas actualizadas: detalle=${data.detallePlanillaId}, ${horasAnterior} -> ${horasNuevo}`,
+    );
+
+    await registrarAuditoria({
+      tabla: "detalle_planilla",
+      registroId: data.detallePlanillaId,
+      accion: "editar",
+      antes: { horasLaboradas: horasAnterior },
+      despues: { horasLaboradas: horasNuevo },
+      realizadoPor: session.user.id,
+    });
+
+    return {
+      success: true,
+      message: "Horas laboradas actualizadas",
+      data: {},
+    };
+  } catch (error) {
+    logger.error("PLANILLA", "Error al actualizar horas laboradas:", error);
+    return {
+      success: false,
+      message: "Error al actualizar horas laboradas",
+      data: {},
+    };
+  }
+}
+
 export async function confirmarPlanilla(
   formData: unknown,
 ): Promise<ActionResponse> {
@@ -971,6 +1082,7 @@ async function enviarColillaPorDetalle(params: {
     tipo: planillaData.tipo,
     salarioBruto: row.detalle.salarioBruto,
     horasExtra: row.detalle.horasExtra,
+    horasLaboradas: row.detalle.horasLaboradas,
     montoHorasExtra: row.detalle.montoHorasExtra,
     totalIngresosExtras: row.detalle.totalIngresosExtras,
     ingresosExtras: ingresosEmp.map((i) => ({
@@ -1047,131 +1159,6 @@ async function enviarColillaPorDetalle(params: {
     message: `No se pudo enviar a ${row.userEmail}: ${result.error ?? "error desconocido"}`,
     detalleId,
   };
-}
-
-function buildColillaPagoHtml(data: {
-  nombre: string;
-  cedula: string;
-  sucursal: string | null;
-  puesto: string | null;
-  periodoInicio: string;
-  periodoFin: string;
-  fechaPago: string | null;
-  tipo: string;
-  salarioBruto: string;
-  horasExtra: string;
-  montoHorasExtra: string;
-  totalIngresosExtras: string;
-  ingresosExtras: { concepto: string; monto: string }[];
-  desgloseDeduccionesLegales: {
-    nombre: string;
-    clave: string;
-    tipo: "porcentaje" | "monto_fijo";
-    base: "total_ingresos" | "gravable_renta";
-    valor: string;
-    monto: string;
-  }[];
-  impuestoRenta: string;
-  totalDeduccionesLegales: string;
-  totalDeduccionesAdicionales: string;
-  deduccionesAdicionales: { concepto: string; monto: string }[];
-  salarioNeto: string;
-}): string {
-  const fmt = (n: string) =>
-    parseFloat(n).toLocaleString("es-CR", { minimumFractionDigits: 2 });
-
-  const ingresosExtrasRows = data.ingresosExtras
-    .map(
-      (i) =>
-        `<tr><td style="padding:4px 8px;color:#78716c;">${escapeHtml(i.concepto)}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(i.monto)}</td></tr>`,
-    )
-    .join("");
-
-  const deduccionesLegalesRows = data.desgloseDeduccionesLegales
-    .map((d) => {
-      const tasa =
-        d.tipo === "porcentaje"
-          ? ` (${(parseFloat(d.valor) * 100).toFixed(4).replace(/\.?0+$/, "")}%)`
-          : "";
-      const base =
-        d.base === "gravable_renta" ? " (gravable)" : "";
-      return `<tr><td style="padding:4px 12px;">${escapeHtml(d.nombre)}${tasa}${base}</td><td style="padding:4px 12px;text-align:right;">¢${fmt(d.monto)}</td></tr>`;
-    })
-    .join("");
-
-  const deduccionesAdicionalesRows = data.deduccionesAdicionales
-    .map(
-      (d) =>
-        `<tr><td style="padding:4px 8px;color:#78716c;">${escapeHtml(d.concepto)}</td><td style="padding:4px 8px;text-align:right;">¢${fmt(d.monto)}</td></tr>`,
-    )
-    .join("");
-
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Colilla de Pago</title></head>
-<body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:#f5f5f5;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:40px 0;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-<tr><td style="background-color:#1c1917;padding:24px 40px;text-align:center;">
-<h1 style="margin:0;color:#fff;font-size:22px;font-weight:600;">Colilla de Pago — Jivis</h1>
-</td></tr>
-<tr><td style="padding:32px 40px;">
-<h2 style="margin:0 0 16px;color:#1c1917;font-size:18px;">${escapeHtml(data.nombre)}</h2>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
-<tr>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Cédula: <strong style="color:#1c1917;">${escapeHtml(data.cedula)}</strong></td>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Puesto: <strong style="color:#1c1917;">${escapeHtml(data.puesto || "—")}</strong></td>
-</tr><tr>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Sucursal: <strong style="color:#1c1917;">${escapeHtml(data.sucursal || "—")}</strong></td>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Período: <strong style="color:#1c1917;">${data.periodoInicio} a ${data.periodoFin}</strong></td>
-</tr>
-</table>
-
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e5e4;border-radius:6px;margin-bottom:16px;">
-<tr style="background-color:#f5f5f4;"><td colspan="2" style="padding:8px 12px;font-weight:600;color:#1c1917;font-size:14px;">Ingresos</td></tr>
-<tr><td style="padding:4px 12px;">Salario bruto</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.salarioBruto)}</td></tr>
-<tr><td style="padding:4px 12px;">Horas extra (${data.horasExtra}h)</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.montoHorasExtra)}</td></tr>
-${ingresosExtrasRows}
-<tr style="border-top:1px solid #e7e5e4;"><td style="padding:8px 12px;font-weight:600;">Total ingresos</td><td style="padding:8px 12px;text-align:right;font-weight:600;">¢${fmt((parseFloat(data.salarioBruto) + parseFloat(data.montoHorasExtra) + parseFloat(data.totalIngresosExtras)).toFixed(2))}</td></tr>
-</table>
-
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e5e4;border-radius:6px;margin-bottom:16px;">
-<tr style="background-color:#f5f5f4;"><td colspan="2" style="padding:8px 12px;font-weight:600;color:#1c1917;font-size:14px;">Deducciones Legales</td></tr>
-${deduccionesLegalesRows || `<tr><td colspan="2" style="padding:8px 12px;color:#a8a29e;">Sin deducciones legales aplicables</td></tr>`}
-<tr><td style="padding:4px 12px;">Impuesto sobre la Renta</td><td style="padding:4px 12px;text-align:right;">¢${fmt(data.impuestoRenta)}</td></tr>
-<tr style="border-top:1px solid #e7e5e4;"><td style="padding:8px 12px;font-weight:600;">Total deducciones legales</td><td style="padding:8px 12px;text-align:right;font-weight:600;">¢${fmt(data.totalDeduccionesLegales)}</td></tr>
-</table>
-
-${deduccionesAdicionalesRows ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e5e4;border-radius:6px;margin-bottom:16px;">
-<tr style="background-color:#f5f5f4;"><td colspan="2" style="padding:8px 12px;font-weight:600;color:#1c1917;font-size:14px;">Deducciones Adicionales</td></tr>
-${deduccionesAdicionalesRows}
-<tr style="border-top:1px solid #e7e5e4;"><td style="padding:8px 12px;font-weight:600;">Total deducciones adicionales</td><td style="padding:8px 12px;text-align:right;font-weight:600;">¢${fmt(data.totalDeduccionesAdicionales)}</td></tr>
-</table>` : ""}
-
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1c1917;border-radius:6px;margin-top:24px;">
-<tr><td style="padding:16px 20px;color:#fff;font-size:18px;font-weight:700;">Salario Neto</td><td style="padding:16px 20px;text-align:right;color:#fff;font-size:18px;font-weight:700;">¢${fmt(data.salarioNeto)}</td></tr>
-</table>
-
-${data.fechaPago ? `<p style="margin:16px 0 0;color:#78716c;font-size:13px;">Fecha de pago: ${data.fechaPago}</p>` : ""}
-</td></tr>
-<tr><td style="background-color:#f5f5f4;padding:16px 40px;text-align:center;">
-<p style="margin:0;color:#a8a29e;font-size:12px;">Distribuidora Jivis S.A. — Colilla de pago generada automáticamente</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 export async function reenviarColillaEmpleado(

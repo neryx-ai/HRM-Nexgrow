@@ -18,6 +18,7 @@ interface DetalleItem {
     salarioBruto: string;
     horasOrdinarias: string;
     horasExtra: string;
+    horasLaboradas: string;
     montoHorasExtra: string;
     desgloseDeduccionesLegales: DesgloseLegalItem[] | null;
     impuestoRenta: string;
@@ -98,6 +99,8 @@ export default async function PlanillaDetallePage({
     ingresos: IngresoItem[];
   };
 
+  const isDev = process.env.NODE_ENV === "development";
+
   return (
     <div className="p-2">
       <PlanillaDetalle
@@ -105,6 +108,7 @@ export default async function PlanillaDetallePage({
         detalles={data.detalles}
         deducciones={data.deducciones}
         ingresos={data.ingresos}
+        isDev={isDev}
       />
     </div>
   );

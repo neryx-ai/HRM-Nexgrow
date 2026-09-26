@@ -42,6 +42,9 @@ export const detallePlanilla = pgTable(
     horasExtra: numeric("horas_extra", { precision: 5, scale: 2 })
       .notNull()
       .default("0"),
+    horasLaboradas: numeric("horas_laboradas", { precision: 5, scale: 2 })
+      .notNull()
+      .default("96"),
     montoHorasExtra: numeric("monto_horas_extra", { precision: 12, scale: 2 })
       .notNull()
       .default("0"),

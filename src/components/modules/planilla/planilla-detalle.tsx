@@ -15,6 +15,8 @@ import {
   Loader2,
   Mail,
   AlertCircle,
+  Pencil,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +54,7 @@ import {
   confirmarPlanilla,
   reenviarColillaEmpleado,
   reenviarColillaTodas,
+  actualizarHorasLaboradas,
 } from "@/actions/planilla.actions";
 import {
   exportarPlanillaExcel,
@@ -75,6 +78,7 @@ interface DetalleItem {
     salarioBruto: string;
     horasOrdinarias: string;
     horasExtra: string;
+    horasLaboradas: string;
     montoHorasExtra: string;
     desgloseDeduccionesLegales: DesgloseLegalItem[] | null;
     impuestoRenta: string;
@@ -139,18 +143,20 @@ function fmtCRC(n: string | number) {
   });
 }
 
-type ModalMode = "deduccion" | "ingreso" | "confirmar" | null;
+type ModalMode = "deduccion" | "ingreso" | "confirmar" | "horas" | null;
 
 export function PlanillaDetalle({
   planilla: p,
   detalles,
   deducciones,
   ingresos,
+  isDev = false,
 }: {
   planilla: PlanillaData;
   detalles: DetalleItem[];
   deducciones: DeduccionItem[];
   ingresos: IngresoItem[];
+  isDev?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -165,6 +171,7 @@ export function PlanillaDetalle({
     monto: "",
     tipo: "otro",
     fechaPago: "",
+    horasLaboradas: "",
   });
 
   const isBorrador = p.estado === "borrador";
@@ -323,8 +330,42 @@ export function PlanillaDetalle({
   }
 
   function resetForm() {
-    setFormData({ concepto: "", monto: "", tipo: "otro", fechaPago: "" });
+    setFormData({
+      concepto: "",
+      monto: "",
+      tipo: "otro",
+      fechaPago: "",
+      horasLaboradas: "",
+    });
     setSelectedDetalle(null);
+  }
+
+  async function handleUpdateHorasLaboradas() {
+    if (!selectedDetalle) return;
+    const horas = parseFloat(formData.horasLaboradas);
+    if (Number.isNaN(horas) || horas < 0) {
+      toast.error("Ingresá un número válido de horas.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await actualizarHorasLaboradas({
+        detallePlanillaId: selectedDetalle.detalle.id,
+        horasLaboradas: horas,
+      });
+      if (result.success) {
+        toast.success(result.message);
+        setModalMode(null);
+        resetForm();
+        router.refresh();
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error("Error al actualizar horas laboradas");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleExportExcel() {
@@ -523,6 +564,7 @@ export function PlanillaDetalle({
                 <TableHead className="text-right font-semibold">
                   Neto
                 </TableHead>
+                <TableHead className="text-right">Horas laboradas</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -632,6 +674,37 @@ export function PlanillaDetalle({
                       ¢{fmtCRC(d.detalle.salarioNeto)}
                     </TableCell>
                     <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="font-mono text-sm">
+                          {fmtCRC(d.detalle.horasLaboradas)}h
+                        </span>
+                        {isBorrador && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Editar horas laboradas"
+                            onClick={() => {
+                              setSelectedDetalle(d);
+                              setFormData({
+                                concepto: "",
+                                monto: "",
+                                tipo: "otro",
+                                fechaPago: "",
+                                horasLaboradas:
+                                  parseFloat(d.detalle.horasLaboradas).toFixed(
+                                    2,
+                                  ) || "96",
+                              });
+                              setModalMode("horas");
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
                       {isBorrador && (
                         <div className="flex justify-end gap-1">
                           <Button
@@ -645,6 +718,7 @@ export function PlanillaDetalle({
                                 monto: "",
                                 tipo: "otro",
                                 fechaPago: "",
+                                horasLaboradas: "",
                               });
                               setModalMode("deduccion");
                             }}
@@ -662,6 +736,7 @@ export function PlanillaDetalle({
                                 monto: "",
                                 tipo: "otro",
                                 fechaPago: "",
+                                horasLaboradas: "",
                               });
                               setModalMode("ingreso");
                             }}
@@ -670,9 +745,9 @@ export function PlanillaDetalle({
                           </Button>
                         </div>
                       )}
-                      {p.estado === "procesada" && (
-                        <div className="flex justify-end items-center gap-1">
-                          {d.detalle.colillaEnviada === "1" ? (
+                      <div className="flex justify-end items-center gap-1">
+                        {p.estado === "procesada" &&
+                          (d.detalle.colillaEnviada === "1" ? (
                             <span title="Colilla enviada">
                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                             </span>
@@ -680,7 +755,8 @@ export function PlanillaDetalle({
                             <span title="Colilla NO enviada — revisar logs">
                               <AlertCircle className="h-4 w-4 text-amber-500" />
                             </span>
-                          )}
+                          ))}
+                        {p.estado === "procesada" && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -699,8 +775,24 @@ export function PlanillaDetalle({
                               <Mail className="h-4 w-4 text-blue-500" />
                             )}
                           </Button>
-                        </div>
-                      )}
+                        )}
+                        {isDev && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Preview del email (solo dev)"
+                            asChild
+                          >
+                            <a
+                              href={`/dashboard/dev/planilla/${d.detalle.id}/preview`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Eye className="h-4 w-4 text-violet-500" />
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -919,6 +1011,69 @@ export function PlanillaDetalle({
             >
               <Send className="h-4 w-4 mr-2" />
               {loading ? "Procesando..." : "Confirmar y enviar colillas"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={modalMode === "horas"}
+        onOpenChange={() => {
+          setModalMode(null);
+          resetForm();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar horas laboradas</DialogTitle>
+            <DialogDescription>
+              {selectedDetalle &&
+                `${selectedDetalle.empleadoNombre} ${selectedDetalle.empleadoApellidos}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FieldGroup>
+              <Field>
+                <FieldLabel>Horas laboradas del período</FieldLabel>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="744"
+                  value={formData.horasLaboradas}
+                  onChange={(e) =>
+                    setFormData((f) => ({
+                      ...f,
+                      horasLaboradas: e.target.value,
+                    }))
+                  }
+                  placeholder="96"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Valor por defecto: 96h. Rango permitido: 0–744h.
+                </p>
+              </Field>
+            </FieldGroup>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setModalMode(null);
+                resetForm();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleUpdateHorasLaboradas}
+              disabled={
+                loading ||
+                !formData.horasLaboradas ||
+                Number.isNaN(parseFloat(formData.horasLaboradas))
+              }
+            >
+              {loading ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

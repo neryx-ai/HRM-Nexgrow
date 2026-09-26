@@ -129,6 +129,18 @@ export const ReenviarColillaTodasSchema = v.object({
   ),
 });
 
+export const ActualizarHorasLaboradasSchema = v.object({
+  detallePlanillaId: v.pipe(
+    v.string("El ID del detalle es requerido."),
+    v.nonEmpty("El ID del detalle es requerido."),
+  ),
+  horasLaboradas: v.pipe(
+    v.number("Las horas laboradas son requeridas."),
+    v.minValue(0, "Las horas laboradas no pueden ser negativas."),
+    v.maxValue(744, "Máximo 744 horas (horas de un mes completo)."),
+  ),
+});
+
 export type CrearPlanillaData = v.InferOutput<typeof CrearPlanillaSchema>;
 export type AgregarDeduccionData = v.InferOutput<typeof AgregarDeduccionSchema>;
 export type AgregarIngresoExtraData = v.InferOutput<typeof AgregarIngresoExtraSchema>;
@@ -137,4 +149,7 @@ export type CrearTramoRentaData = v.InferOutput<typeof CrearTramoRentaSchema>;
 export type ReenviarColillaData = v.InferOutput<typeof ReenviarColillaSchema>;
 export type ReenviarColillaTodasData = v.InferOutput<
   typeof ReenviarColillaTodasSchema
+>;
+export type ActualizarHorasLaboradasData = v.InferOutput<
+  typeof ActualizarHorasLaboradasSchema
 >;
