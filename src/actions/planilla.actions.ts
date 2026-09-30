@@ -1113,6 +1113,7 @@ async function enviarColillaPorDetalle(params: {
   const html = buildColillaPagoHtml({
     nombre: `${row.empleadoNombre} ${row.empleadoApellidos}`,
     cedula: row.empleadoCedula,
+    email: row.userEmail,
     sucursal: row.sucursalNombre,
     puesto: row.puestoNombre,
     periodoInicio: planillaData.fechaInicio,

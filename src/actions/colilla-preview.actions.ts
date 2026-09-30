@@ -38,6 +38,7 @@ export async function getColillaContextByDetalle(
       empleadoApellidos: empleado.apellidos,
       empleadoCedula: empleado.cedula,
       empleadoUserId: empleado.userId,
+      empleadoEmail: user.email,
       sucursalNombre: sucursal.nombre,
       puestoNombre: puesto.nombre,
     })
@@ -72,6 +73,7 @@ export async function getColillaContextByDetalle(
   const colilla: ColillaData = {
     nombre: `${row.empleadoNombre} ${row.empleadoApellidos}`,
     cedula: row.empleadoCedula,
+    email: row.empleadoEmail ?? null,
     sucursal: row.sucursalNombre,
     puesto: row.puestoNombre,
     periodoInicio: planillaData.fechaInicio,
