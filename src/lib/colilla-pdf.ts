@@ -254,7 +254,16 @@ export function buildColillaPdf(doc: jsPDF, data: ColillaData): void {
   doc.text(
     "Distribuidora Jivis S.A. — Colilla de pago generada automáticamente",
     PAGE_WIDTH / 2,
-    290,
+    288,
     { align: "center" },
   );
+
+  if (data.email) {
+    doc.text(
+      `Enviado por correo electrónico a ${data.email}`,
+      PAGE_WIDTH / 2,
+      293,
+      { align: "center" },
+    );
+  }
 }

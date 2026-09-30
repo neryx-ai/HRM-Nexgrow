@@ -4,6 +4,7 @@ import { formatPeriodoLabel } from "./periodo";
 export interface ColillaData {
   nombre: string;
   cedula: string;
+  email: string | null;
   sucursal: string | null;
   puesto: string | null;
   periodoInicio: string;
@@ -131,6 +132,7 @@ ${data.fechaPago ? `<p style="margin:16px 0 0;color:#78716c;font-size:13px;">Fec
 </td></tr>
 <tr><td style="background-color:#f5f5f4;padding:16px 40px;text-align:center;">
 <p style="margin:0;color:#a8a29e;font-size:12px;">Distribuidora Jivis S.A. — Colilla de pago generada automáticamente</p>
+${data.email ? `<p style="margin:6px 0 0;color:#a8a29e;font-size:12px;">Enviado por correo electrónico a ${escapeHtml(data.email)}</p>` : ""}
 </td></tr>
 </table>
 </td></tr>
