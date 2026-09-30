@@ -21,6 +21,7 @@ import {
   ChartArea,
   FileBarChart,
   LayoutDashboard,
+  Receipt,
   Settings,
   TreePalm,
   UserCheck,
@@ -96,6 +97,14 @@ function MySidebar({
   const accessMiAsistencia = authClient.admin.checkRolePermission({
     permission: {
       asistencia: ["marcar-self"],
+    },
+    role:
+      (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
+      "empleado",
+  });
+  const accessMisColillas = authClient.admin.checkRolePermission({
+    permission: {
+      planilla: ["view-own"],
     },
     role:
       (session?.user.role as "admin" | "empleado" | "rrhh" | undefined) ??
@@ -259,6 +268,23 @@ function MySidebar({
                   >
                     <UserCheck className="size-5" />
                     {open && <span>Mi asistencia</span>}
+                  </Button>
+                </Link>
+              </TooltipShow>
+            </SidebarMenuItem>
+          )}
+
+          {accessMisColillas && (
+            <SidebarMenuItem>
+              <TooltipShow open={open} content="Mis colillas">
+                <Link href="/dashboard/mi-colillas">
+                  <Button
+                    variant="ghost"
+                    size={open ? "default" : "icon"}
+                    className={`w-full ${open ? "justify-start" : "justify-center"} text-base cursor-pointer`}
+                  >
+                    <Receipt className="size-5" />
+                    {open && <span>Mis colillas</span>}
                   </Button>
                 </Link>
               </TooltipShow>

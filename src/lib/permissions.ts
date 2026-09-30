@@ -18,7 +18,7 @@ const statement = {
   vacacion: ["otorgar", "ajustar", "list", "list-own"],
   solicitudPersonal: ["request", "approve", "list-own", "list"],
   notificacionGeo: ["list", "resolve"],
-  planilla: ["calcular", "ver", "exportar", "enviar-comprobante"],
+  planilla: ["calcular", "ver", "exportar", "enviar-comprobante", "view-own"],
   reporte: ["ver-gerencial"],
   quiosco: ["activar"], // Permiso para configurar/abrir la vista de quiosco
   configuracion: ["ver", "editar"],
@@ -65,5 +65,6 @@ export const empleadoRole = ac.newRole({
   asistencia: ["marcar-self", "list-own"], // Marca y ve su propia asistencia
   vacacion: ["list-own"],
   solicitudPersonal: ["request", "list-own"],
+  planilla: ["view-own"],
   perfil: ["ver", "editar"],
 });
