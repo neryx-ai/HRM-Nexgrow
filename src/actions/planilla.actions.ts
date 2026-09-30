@@ -231,6 +231,10 @@ export async function crearPlanilla(
         salarioBase: empleado.salarioBase,
         horasJornada: empleado.horasJornada,
         tipoJornada: empleado.tipoJornada,
+        aplicaPension: empleado.aplicaPension,
+        montoPension: empleado.montoPension,
+        aplicaCobrosJudiciales: empleado.aplicaCobrosJudiciales,
+        montoCobrosJudiciales: empleado.montoCobrosJudiciales,
       })
       .from(empleado)
       .where(eq(empleado.estado, "activo"));
@@ -280,7 +284,42 @@ export async function crearPlanilla(
       });
     }
 
-    await db.insert(detallePlanilla).values(detalleValues);
+    const insertedDetalles = await db
+      .insert(detallePlanilla)
+      .values(detalleValues)
+      .returning({ id: detallePlanilla.id, empleadoId: detallePlanilla.empleadoId });
+
+    const deduccionesAuto: typeof deduccionAdicional.$inferInsert[] = [];
+    for (const emp of empleadosActivos) {
+      const detalle = insertedDetalles.find((d) => d.empleadoId === emp.id);
+      if (!detalle) continue;
+
+      if (emp.aplicaPension && emp.montoPension) {
+        deduccionesAuto.push({
+          detallePlanillaId: detalle.id,
+          empleadoId: emp.id,
+          concepto: "Pensión alimenticia",
+          monto: emp.montoPension,
+          tipo: "descuento_judicial",
+        });
+      }
+      if (emp.aplicaCobrosJudiciales && emp.montoCobrosJudiciales) {
+        deduccionesAuto.push({
+          detallePlanillaId: detalle.id,
+          empleadoId: emp.id,
+          concepto: "Cobros judiciales",
+          monto: emp.montoCobrosJudiciales,
+          tipo: "descuento_judicial",
+        });
+      }
+    }
+
+    if (deduccionesAuto.length > 0) {
+      await db.insert(deduccionAdicional).values(deduccionesAuto);
+      for (const d of deduccionesAuto) {
+        await recalcularDetalle(d.detallePlanillaId);
+      }
+    }
 
     const allCalculos = detalleValues.map((d) => ({
       salarioBruto: d.salarioBruto,

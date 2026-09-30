@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { valibotResolver } from "@hookform/resolvers/valibot";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -58,6 +58,7 @@ import {
   updateEmpleado,
   toggleEmpleadoEstado,
 } from "@/actions/empleado.actions";
+import type { Control } from "react-hook-form";
 import {
   CreateEmpleadoSchema,
   UpdateEmpleadoSchema,
@@ -86,6 +87,10 @@ interface Empleado {
   horaSalida: string | null;
   pin: string | null;
   estado: "activo" | "inactivo" | "licencia";
+  aplicaPension: boolean;
+  montoPension: string | null;
+  aplicaCobrosJudiciales: boolean;
+  montoCobrosJudiciales: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -110,6 +115,128 @@ interface EmpleadosManagerProps {
   empleados: EmpleadoRow[];
   sucursales: Sucursal[];
   puestos: Puesto[];
+}
+
+function DeduccionesJudicialesFields({
+  control,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  control: Control<any>;
+}) {
+  const aplicaPension = useWatch({ control, name: "aplicaPension" }) === true;
+  const aplicaCobros =
+    useWatch({ control, name: "aplicaCobrosJudiciales" }) === true;
+
+  return (
+    <FieldGroup className="rounded-md border border-border/60 p-4 bg-muted/20">
+      <p className="text-sm font-medium text-foreground">
+        Deducciones judiciales
+      </p>
+      <p className="text-xs text-muted-foreground -mt-4">
+        Marcá la casilla si aplica e ingresá el monto a deducir.
+      </p>
+      <div className="flex items-center gap-3">
+        <Controller
+          name="aplicaPension"
+          control={control}
+          render={({ field }) => (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={field.value === true}
+                onChange={(e) => field.onChange(e.target.checked)}
+                className="size-4 rounded border-border"
+                aria-label="Aplica pensión"
+              />
+              <span className="text-sm font-medium w-40">Pensión</span>
+            </label>
+          )}
+        />
+        <Controller
+          name="montoPension"
+          control={control}
+          render={({ field, fieldState }) => (
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                ₡
+              </span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0.00"
+                disabled={!aplicaPension}
+                className="pl-7"
+                value={typeof field.value === "number" ? field.value : ""}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? Number(e.target.value) : undefined,
+                  )
+                }
+                aria-invalid={fieldState.invalid}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </div>
+          )}
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <Controller
+          name="aplicaCobrosJudiciales"
+          control={control}
+          render={({ field }) => (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={field.value === true}
+                onChange={(e) => field.onChange(e.target.checked)}
+                className="size-4 rounded border-border"
+                aria-label="Aplica cobros judiciales"
+              />
+              <span className="text-sm font-medium w-40">
+                Cobros judiciales
+              </span>
+            </label>
+          )}
+        />
+        <Controller
+          name="montoCobrosJudiciales"
+          control={control}
+          render={({ field, fieldState }) => (
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                ₡
+              </span>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder="0.00"
+                disabled={!aplicaCobros}
+                className="pl-7"
+                value={typeof field.value === "number" ? field.value : ""}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? Number(e.target.value) : undefined,
+                  )
+                }
+                aria-invalid={fieldState.invalid}
+              />
+              {fieldState.error && (
+                <p className="text-destructive text-xs mt-1">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </div>
+          )}
+        />
+      </div>
+    </FieldGroup>
+  );
 }
 
 function formatCRC(value: string | number): string {
@@ -221,6 +348,10 @@ export function EmpleadosManager({
       horasJornada: undefined,
       horaEntrada: undefined,
       horaSalida: undefined,
+      aplicaPension: undefined,
+      montoPension: undefined,
+      aplicaCobrosJudiciales: undefined,
+      montoCobrosJudiciales: undefined,
     });
     setIsCreateOpen(true);
   }
@@ -242,6 +373,16 @@ export function EmpleadosManager({
       horasJornada: row.empleado.horasJornada ?? undefined,
       horaEntrada: row.empleado.horaEntrada ?? undefined,
       horaSalida: row.empleado.horaSalida ?? undefined,
+      aplicaPension: row.empleado.aplicaPension,
+      montoPension:
+        row.empleado.aplicaPension && row.empleado.montoPension
+          ? Number(row.empleado.montoPension)
+          : undefined,
+      aplicaCobrosJudiciales: row.empleado.aplicaCobrosJudiciales,
+      montoCobrosJudiciales:
+        row.empleado.aplicaCobrosJudiciales && row.empleado.montoCobrosJudiciales
+          ? Number(row.empleado.montoCobrosJudiciales)
+          : undefined,
     });
     setIsEditOpen(true);
   }
@@ -856,6 +997,7 @@ export function EmpleadosManager({
                   </Field>
                 )}
               />
+              <DeduccionesJudicialesFields control={createForm.control} />
               <DialogFooter>
                 <Button
                   type="button"
@@ -1229,6 +1371,7 @@ export function EmpleadosManager({
                   </Field>
                 )}
               />
+              <DeduccionesJudicialesFields control={editForm.control} />
               {editingEmpleado?.empleado?.pin && (
                 <Field>
                   <FieldLabel>PIN (solo lectura)</FieldLabel>

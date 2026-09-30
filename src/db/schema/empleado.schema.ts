@@ -64,6 +64,16 @@ export const empleado = pgTable(
       "consentimiento_geolocalizacion_at",
     ),
 
+    aplicaPension: boolean("aplica_pension").notNull().default(false),
+    montoPension: numeric("monto_pension", { precision: 12, scale: 2 }),
+    aplicaCobrosJudiciales: boolean("aplica_cobros_judiciales")
+      .notNull()
+      .default(false),
+    montoCobrosJudiciales: numeric("monto_cobros_judiciales", {
+      precision: 12,
+      scale: 2,
+    }),
+
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

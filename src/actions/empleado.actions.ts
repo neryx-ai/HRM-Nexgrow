@@ -13,6 +13,7 @@ import * as v from "valibot";
 import {
   CreateEmpleadoSchema,
   UpdateEmpleadoSchema,
+  validarDeduccionesJudiciales,
 } from "@/lib/validations/empleado";
 import { revalidatePath } from "next/cache";
 import { logger } from "@/lib/logger";
@@ -162,6 +163,16 @@ export async function createEmpleado(
 
     const data = parsed.output;
 
+    const errorJudicial = validarDeduccionesJudiciales({
+      aplicaPension: data.aplicaPension,
+      montoPension: data.montoPension,
+      aplicaCobrosJudiciales: data.aplicaCobrosJudiciales,
+      montoCobrosJudiciales: data.montoCobrosJudiciales,
+    });
+    if (errorJudicial) {
+      return { success: false, message: errorJudicial, data: {} };
+    }
+
     const [existingCedula] = await db
       .select({ id: empleado.id })
       .from(empleado)
@@ -223,6 +234,15 @@ export async function createEmpleado(
         horasJornada: data.horasJornada,
         horaEntrada: data.horaEntrada,
         horaSalida: data.horaSalida,
+        aplicaPension: data.aplicaPension === true,
+        montoPension: data.aplicaPension === true && data.montoPension !== undefined
+          ? String(data.montoPension)
+          : null,
+        aplicaCobrosJudiciales: data.aplicaCobrosJudiciales === true,
+        montoCobrosJudiciales:
+          data.aplicaCobrosJudiciales === true && data.montoCobrosJudiciales !== undefined
+            ? String(data.montoCobrosJudiciales)
+            : null,
         pin,
       })
       .returning();
@@ -298,10 +318,27 @@ export async function updateEmpleado(
     }
 
     const { id, ...updates } = parsed.output;
+
+    const errorJudicial = validarDeduccionesJudiciales({
+      aplicaPension: updates.aplicaPension,
+      montoPension: updates.montoPension,
+      aplicaCobrosJudiciales: updates.aplicaCobrosJudiciales,
+      montoCobrosJudiciales: updates.montoCobrosJudiciales,
+    });
+    if (errorJudicial) {
+      return { success: false, message: errorJudicial, data: {} };
+    }
+
     const cleanUpdates: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(updates)) {
       if (val !== undefined) {
-        cleanUpdates[key] = key === "salarioBase" ? String(val) : val;
+        if (key === "salarioBase") {
+          cleanUpdates[key] = String(val);
+        } else if (key === "montoPension" || key === "montoCobrosJudiciales") {
+          cleanUpdates[key] = String(val);
+        } else {
+          cleanUpdates[key] = val;
+        }
       }
     }
 

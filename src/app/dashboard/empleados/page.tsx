@@ -29,6 +29,10 @@ interface EmpleadoRow {
     horaSalida: string | null;
     pin: string | null;
     estado: "activo" | "inactivo" | "licencia";
+    aplicaPension: boolean;
+    montoPension: string | null;
+    aplicaCobrosJudiciales: boolean;
+    montoCobrosJudiciales: string | null;
     createdAt: Date;
     updatedAt: Date;
   };
