@@ -1,6 +1,19 @@
 import Link from "next/link";
 import { getEmpleadoById } from "@/actions/empleado.actions";
-import { ArrowLeft, Clock, User, Briefcase, Shield } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  User,
+  Briefcase,
+  Shield,
+  Gavel,
+  History,
+} from "lucide-react";
+import { deduccionAdicional } from "@/db/schema/deduccion-adicional.schema";
+import { detallePlanilla } from "@/db/schema/detalle-planilla.schema";
+import { planilla } from "@/db/schema/planilla.schema";
+import { eq, desc } from "drizzle-orm";
+import { db } from "@/db/drizzle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +42,10 @@ interface Empleado {
   horaSalida: string | null;
   pin: string | null;
   estado: "activo" | "inactivo" | "licencia";
+  aplicaPension: boolean;
+  montoPension: string | null;
+  aplicaCobrosJudiciales: boolean;
+  montoCobrosJudiciales: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,6 +115,28 @@ export default async function EmpleadoDetailPage({
     sucursalNombre: string;
     puestoNombre: string;
   };
+
+  const historialDeducciones = await db
+    .select({
+      id: deduccionAdicional.id,
+      concepto: deduccionAdicional.concepto,
+      monto: deduccionAdicional.monto,
+      tipo: deduccionAdicional.tipo,
+      planillaId: planilla.id,
+      planillaTipo: planilla.tipo,
+      planillaEstado: planilla.estado,
+      fechaInicio: planilla.fechaInicio,
+      fechaFin: planilla.fechaFin,
+    })
+    .from(deduccionAdicional)
+    .innerJoin(
+      detallePlanilla,
+      eq(deduccionAdicional.detallePlanillaId, detallePlanilla.id),
+    )
+    .innerJoin(planilla, eq(detallePlanilla.planillaId, planilla.id))
+    .where(eq(deduccionAdicional.empleadoId, empleado.id))
+    .orderBy(desc(planilla.fechaFin))
+    .limit(20);
 
   return (
     <div className="p-2 pr-4 pb-10 space-y-6">
@@ -279,13 +318,99 @@ export default async function EmpleadoDetailPage({
                   {empleado.estado}
                 </Badge>
               </div>
-              {/* <div className="w-full col-span-2">
-                <p className="text-sm text-muted-foreground">ID de usuario</p>
-                <p className="font-mono text-sm w-full ">
-                  {empleado.userId ?? "—"}
-                </p>
-              </div> */}
+{/* <div className="w-full col-span-2">
+              <p className="text-sm text-muted-foreground">ID de usuario</p>
+              <p className="font-mono text-sm w-full ">
+                {empleado.userId ?? "—"}
+              </p>
+            </div> */}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gavel className="size-5" />
+              Deducciones judiciales
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!empleado.aplicaPension && !empleado.aplicaCobrosJudiciales ? (
+              <p className="text-sm text-muted-foreground">
+                Sin deducciones judiciales registradas.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Pensión</p>
+                  {empleado.aplicaPension ? (
+                    <p className="font-medium text-lg">
+                      {formatCRC(empleado.montoPension ?? "0")}
+                    </p>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">—</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">
+                    Cobros judiciales
+                  </p>
+                  {empleado.aplicaCobrosJudiciales ? (
+                    <p className="font-medium text-lg">
+                      {formatCRC(empleado.montoCobrosJudiciales ?? "0")}
+                    </p>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">—</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="size-5" />
+              Historial de deducciones
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {historialDeducciones.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Sin deducciones registradas en planillas.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {historialDeducciones.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-center justify-between rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{d.concepto}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {d.planillaTipo === "mensual" ? "Planilla mensual" : "Planilla quincenal"}
+                        {" · "}
+                        {d.fechaInicio} — {d.fechaFin}
+                        {d.planillaEstado === "borrador" && (
+                          <Badge variant="outline" className="ml-2 text-xs">
+                            borrador
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono font-medium">
+                        {formatCRC(d.monto)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{d.tipo}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -60,6 +60,7 @@ import {
   exportarPlanillaExcel,
   exportarPlanillaPDF,
 } from "@/actions/exportar.actions";
+import { exportarColillaPdf } from "@/actions/colilla-pdf.actions";
 
 interface DesgloseLegalItem {
   nombre: string;
@@ -150,18 +151,17 @@ export function PlanillaDetalle({
   detalles,
   deducciones,
   ingresos,
-  isDev = false,
 }: {
   planilla: PlanillaData;
   detalles: DetalleItem[];
   deducciones: DeduccionItem[];
   ingresos: IngresoItem[];
-  isDev?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [reenviandoTodas, setReenviandoTodas] = useState(false);
   const [reenviandoPorId, setReenviandoPorId] = useState<Record<string, boolean>>({});
+  const [descargandoPorId, setDescargandoPorId] = useState<Record<string, boolean>>({});
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedDetalle, setSelectedDetalle] = useState<DetalleItem | null>(
     null,
@@ -365,6 +365,37 @@ export function PlanillaDetalle({
       toast.error("Error al actualizar horas laboradas");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDownloadPdf(detalleId: string, label: string) {
+    setDescargandoPorId((prev) => ({ ...prev, [detalleId]: true }));
+    try {
+      const result = await exportarColillaPdf(detalleId);
+      if (result.success && result.data) {
+        const d = result.data as { base64: string; filename: string; contentType: string };
+        const binary = atob(d.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: d.contentType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = d.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Colilla descargada: ${label}`);
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error("Error al descargar la colilla");
+    } finally {
+      setDescargandoPorId((prev) => {
+        const next = { ...prev };
+        delete next[detalleId];
+        return next;
+      });
     }
   }
 
@@ -776,22 +807,38 @@ export function PlanillaDetalle({
                             )}
                           </Button>
                         )}
-                        {isDev && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            title="Preview del email (solo dev)"
-                            asChild
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Ver colilla"
+                          asChild
+                        >
+                          <a
+                            href={`/dashboard/colillas/${d.detalle.id}/preview`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                           >
-                            <a
-                              href={`/dashboard/dev/planilla/${d.detalle.id}/preview`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Eye className="h-4 w-4 text-violet-500" />
-                            </a>
-                          </Button>
-                        )}
+                            <Eye className="h-4 w-4 text-violet-500" />
+                          </a>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Descargar PDF de colilla"
+                          disabled={descargandoPorId[d.detalle.id]}
+                          onClick={() =>
+                            handleDownloadPdf(
+                              d.detalle.id,
+                              `${d.empleadoNombre} ${d.empleadoApellidos}`,
+                            )
+                          }
+                        >
+                          {descargandoPorId[d.detalle.id] ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-emerald-500" />
+                          ) : (
+                            <Download className="h-4 w-4 text-emerald-500" />
+                          )}
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -1,4 +1,5 @@
 import type { DeduccionLegalDesglose } from "@/db/schema/detalle-planilla.schema";
+import { formatPeriodoLabel } from "./periodo";
 
 export interface ColillaData {
   nombre: string;
@@ -84,7 +85,7 @@ export function buildColillaPagoHtml(data: ColillaData): string {
 <td style="padding:4px 0;color:#78716c;font-size:13px;">Puesto: <strong style="color:#1c1917;">${escapeHtml(data.puesto || "—")}</strong></td>
 </tr><tr>
 <td style="padding:4px 0;color:#78716c;font-size:13px;">Sucursal: <strong style="color:#1c1917;">${escapeHtml(data.sucursal || "—")}</strong></td>
-<td style="padding:4px 0;color:#78716c;font-size:13px;">Período: <strong style="color:#1c1917;">${data.periodoInicio} a ${data.periodoFin}</strong></td>
+<td style="padding:4px 0;color:#78716c;font-size:13px;">${escapeHtml(formatPeriodoLabel(data.tipo, data.periodoInicio, data.periodoFin))}</td>
 </tr>
 </table>
 

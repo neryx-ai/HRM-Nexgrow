@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Code2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Code2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getColillaPreview } from "@/actions/colilla-preview.actions";
+import { getMiEmpleado } from "@/lib/empleado";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { exportarColillaPdf, exportarMiColillaPdf } from "@/actions/colilla-pdf.actions";
+import { MiColillaPreviewClient } from "@/components/modules/mi-colillas/mi-colilla-preview-client";
 
 interface PreviewData {
   html: string;
@@ -22,10 +25,6 @@ export default async function ColillaPreviewPage({
 }: {
   params: Promise<{ detalleId: string }>;
 }) {
-  if (process.env.NODE_ENV !== "development") {
-    notFound();
-  }
-
   const { detalleId } = await params;
 
   const session = await auth.api.getSession({ headers: await headers() });
@@ -35,7 +34,13 @@ export default async function ColillaPreviewPage({
 
   const userRole =
     (session.user as { role?: string })?.role || "empleado";
-  if (!["admin", "rrhh"].includes(userRole)) {
+
+  if (userRole === "empleado") {
+    const miEmpleado = await getMiEmpleado(session.user.id);
+    if (!miEmpleado) {
+      notFound();
+    }
+  } else if (!["admin", "rrhh"].includes(userRole)) {
     notFound();
   }
 
@@ -60,13 +65,17 @@ export default async function ColillaPreviewPage({
   }
 
   const data = result.data as PreviewData;
+  const backHref =
+    userRole === "empleado"
+      ? "/dashboard/mi-colillas"
+      : `/dashboard/payroll/${data.planillaId}`;
 
   return (
     <div className="p-2 md:pr-4 space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/dashboard/payroll/${data.planillaId}`}>
+            <Link href={backHref}>
               <ArrowLeft className="h-4 w-4 mr-1" />
               Volver
             </Link>
@@ -74,14 +83,16 @@ export default async function ColillaPreviewPage({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold">
-                Preview colilla — {data.empleadoNombre}
+                Colilla — {data.empleadoNombre}
               </h2>
               <Badge variant="outline" className="font-mono">
                 {data.empleadoCedula}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {data.tipo === "mensual" ? "Planilla mensual" : "Planilla quincenal"}
+              {data.tipo === "mensual"
+                ? "Planilla mensual"
+                : "Planilla quincenal"}
               {" · "}
               {data.periodo}
               {" · "}
@@ -89,16 +100,10 @@ export default async function ColillaPreviewPage({
             </p>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 flex items-start gap-2">
-        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-amber-900 dark:text-amber-200">
-          <strong>Modo desarrollo.</strong> Esta vista muestra el HTML del email
-          que se enviará al empleado. La ruta{" "}
-          <code>/dashboard/dev/planilla/[id]/preview</code> devuelve 404 en
-          producción.
-        </div>
+        <MiColillaPreviewClient
+          detalleId={detalleId}
+          downloadAction={userRole === "empleado" ? exportarMiColillaPdf : exportarColillaPdf}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_auto]">

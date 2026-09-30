@@ -91,6 +91,21 @@ export const CreateEmpleadoSchema = v.object({
       v.string("La hora de salida debe ser una cadena de texto."),
     ),
   ),
+
+  aplicaPension: v.optional(v.boolean()),
+  montoPension: v.optional(
+    v.pipe(
+      v.number("El monto de pensión debe ser un número."),
+      v.minValue(0.01, "El monto debe ser mayor a 0."),
+    ),
+  ),
+  aplicaCobrosJudiciales: v.optional(v.boolean()),
+  montoCobrosJudiciales: v.optional(
+    v.pipe(
+      v.number("El monto de cobros judiciales debe ser un número."),
+      v.minValue(0.01, "El monto debe ser mayor a 0."),
+    ),
+  ),
 });
 
 export const UpdateEmpleadoSchema = v.object({
@@ -150,7 +165,58 @@ export const UpdateEmpleadoSchema = v.object({
   estado: v.optional(
     v.pipe(v.string("El estado debe ser una cadena de texto."), v.picklist(["activo", "inactivo", "licencia"], "Estado inválido.")),
   ),
+
+  aplicaPension: v.optional(v.boolean()),
+  montoPension: v.optional(
+    v.pipe(
+      v.number("El monto de pensión debe ser un número."),
+      v.minValue(0.01, "El monto debe ser mayor a 0."),
+    ),
+  ),
+  aplicaCobrosJudiciales: v.optional(v.boolean()),
+  montoCobrosJudiciales: v.optional(
+    v.pipe(
+      v.number("El monto de cobros judiciales debe ser un número."),
+      v.minValue(0.01, "El monto debe ser mayor a 0."),
+    ),
+  ),
 });
 
 export type CreateEmpleadoData = v.InferOutput<typeof CreateEmpleadoSchema>;
 export type UpdateEmpleadoData = v.InferOutput<typeof UpdateEmpleadoSchema>;
+
+export interface DeduccionesJudicialesInput {
+  aplicaPension?: boolean;
+  montoPension?: number;
+  aplicaCobrosJudiciales?: boolean;
+  montoCobrosJudiciales?: number;
+}
+
+export function validarDeduccionesJudiciales(
+  data: DeduccionesJudicialesInput,
+): string | null {
+  const pensionActiva = data.aplicaPension === true;
+  const montoPensionValido =
+    typeof data.montoPension === "number" &&
+    !Number.isNaN(data.montoPension) &&
+    data.montoPension > 0;
+  const cobrosActivos = data.aplicaCobrosJudiciales === true;
+  const montoCobrosValido =
+    typeof data.montoCobrosJudiciales === "number" &&
+    !Number.isNaN(data.montoCobrosJudiciales) &&
+    data.montoCobrosJudiciales > 0;
+
+  if (pensionActiva && !montoPensionValido) {
+    return "Si aplica pensión, ingresá el monto.";
+  }
+  if (!pensionActiva && montoPensionValido) {
+    return "Marcá la casilla de pensión para asignar un monto.";
+  }
+  if (cobrosActivos && !montoCobrosValido) {
+    return "Si aplica cobros judiciales, ingresá el monto.";
+  }
+  if (!cobrosActivos && montoCobrosValido) {
+    return "Marcá la casilla de cobros judiciales para asignar un monto.";
+  }
+  return null;
+}
